@@ -1,4 +1,27 @@
-# Turbo Kart Rally
+# Illini Kart Classic
+
+**A UIUC-themed fork of [Turbo Kart Rally](https://github.com/bridge-mind/turbo-kart-rally)** — an arcade kart racer in the spirit of Mario Kart, built entirely with Three.js. Every mesh, texture, sound effect and music track is generated in code at load time. There are no asset files and no build step.
+
+This fork keeps the upstream game and its circuit layout untouched, and re-themes everything around the University of Illinois: the palette is the official Illinois orange and blue, the eight drivers are named after campus buildings, and the track is lined with campus landmarks. See [What this fork changes](#what-this-fork-changes).
+
+---
+
+## What this fork changes
+
+- **Palette.** Illinois blue `#13294B` and Illinois orange `#FF5F05` (plus `#1D58A7`, `#C84113`, `#C4E9F5`, `#FCB316`), taken from [brand.illinois.edu/web/web-color](https://brand.illinois.edu/web/web-color) and defined once in `src/config.js` (`THEME` / `THEME_CSS`). Sky, water, terrain, kerbs, barriers, grandstands, HUD and menus all read from it.
+- **Roster.** The eight drivers are named after teaching buildings — Lincoln, Altgeld, Siebel, Noyes, Armory, Mumford, Gregory, Bevier — with a graduation-cap hat, and per-character stats unchanged.
+- **Landmarks** (`src/landmarks.js`, new). Memorial Stadium and State Farm Center flank the start/finish straight; the Illini Union, the Alma Mater statue, Altgeld Hall, Foellinger Auditorium, Siebel Center and the Morrow Plots corn rows sit around the lap; the McFarland Carillon replaced the lighthouse; the tropical mountains became an Illinois prairie horizon with grain silos, a town water tower and five turning wind turbines.
+- **Campus props.** Corn rows replace the palms, the dropped banana hazard is now an ear of Illinois corn, the item box is an orange-and-blue crate carrying the campus "I", and the circuit banners read `ILLINI / KART / CLASSIC`.
+- **Mid-autumn.** A full moon hangs over the prairie, strings of orange lanterns line the opening straight, and there is a mooncake stall in the infield.
+- **Names.** The game is *Illini Kart Classic* on the *Illini Campus Circuit*.
+
+Track geometry, physics, AI, items and race rules are untouched: `dev/track-test.html` reports the same `centerline mismatches 0` / `racing line offroad 0` as upstream.
+
+## Upstream README
+
+The rest of this file is the upstream README, describing how the original game was built.
+
+---
 
 **An arcade kart racer in the spirit of Mario Kart, built entirely with Three.js. Every mesh, texture, sound effect and music track is generated in code at load time. There are no asset files and no build step.**
 
@@ -16,7 +39,7 @@ The whole game was produced by five Claude Opus 5.5 sub-agents working in parall
 
 Open **https://bridge-mind.github.io/turbo-kart-rally/** in a desktop browser with WebGL2 (Chrome, Edge, Firefox or Safari). Click or press Enter on the title screen, choose one of eight racers, pick a class (50cc, 100cc or 150cc) and a lap count, then hit RACE!. A keyboard or a gamepad works.
 
-Race seven AI drivers around Palm Cove Circuit. Drift through corners and release for a mini-turbo. Grab item boxes and fire shells, drop bananas, pop mushrooms, or call down lightning on the field.
+Race seven AI drivers around the Illini Campus Circuit. Drift through corners and release for a mini-turbo. Grab item boxes and fire shells, drop corn, pop mushrooms, or call down lightning on the field.
 
 ## The prompt that built this
 
@@ -40,10 +63,10 @@ The orchestrating agent wrote an architecture contract first ([ARCHITECTURE.md](
 
 ## Features
 
-- **Eight racers**, each with their own hat, look and stats for speed, acceleration, handling and weight: Blaze, Zippy, Bella, Toadly, Rex, Grumbo, Koopz and Dotty.
-- **Palm Cove Circuit**, about 2.1 km, with a long start straight, sweepers, an S-bend, a bridge over a lagoon, a hairpin, 8 boost pads, 2 jump ramps and 30 item boxes.
+- **Eight racers**, each with their own hat, look and stats for speed, acceleration, handling and weight: Lincoln, Gregory, Siebel, Noyes, Altgeld, Armory, Mumford and Bevier.
+- **Illini Campus Circuit**, about 2.1 km, with a long start straight, sweepers, an S-bend, a bridge over a lagoon, a hairpin, 8 boost pads, 2 jump ramps and 30 item boxes — lined with campus landmarks.
 - **Arcade handling** with hop, drift, three-stage mini-turbo, a rocket start, trick boosts off ramps, off-road slowdown, wall bumps and kart-to-kart collisions resolved by weight.
-- **Eight items**: mushroom, triple mushroom, banana, green shell, homing red shell, star, lightning and blue shell. Item odds are weighted by race position.
+- **Eight items**: mushroom, triple mushroom, corn (the dropped hazard), green shell, homing red shell, star, lightning and blue shell. Item odds are weighted by race position.
 - **AI drivers** that follow a racing line, drift on corners, dodge hazards, use items tactically and rubber-band toward the player.
 - **Fully synthesised audio**: engine, drift and item sounds, and a sequenced chiptune soundtrack with separate menu and race music that speeds up on the final lap.
 - **Effects**: pooled drift sparks, boost flames, dust, star sparkles, explosions, confetti and speed lines, with bloom.
@@ -88,6 +111,7 @@ turbo-kart-rally/
 │   ├── events.js         shared event bus
 │   ├── track.js          circuit, surfaces, walls, racing line
 │   ├── environment.js    sky, lights, water, terrain, scenery
+│   ├── landmarks.js      campus buildings, prairie skyline, mid-autumn props
 │   ├── kart.js           kart physics
 │   ├── ai.js             AI drivers
 │   ├── input.js          keyboard and gamepad
@@ -115,7 +139,9 @@ Open `window.__game` in the browser console for debug hooks such as `startRace()
 
 ## Disclaimer
 
-Turbo Kart Rally is an original, fan-made homage to the kart-racing genre. It is not affiliated with, endorsed by, or associated with Nintendo. All characters, circuits, names, art, music and code in this repository are original.
+Illini Kart Classic is a fan-made homage to the kart-racing genre. It is not affiliated with, endorsed by, or associated with Nintendo, and it is not affiliated with, endorsed by, or associated with the University of Illinois. No official University of Illinois wordmark, logo or other trademark appears anywhere in this project: everything, including the block "I" on the item crates, is drawn procedurally in code. It is a private, non-commercial fan project.
+
+Upstream Turbo Kart Rally is MIT-licensed © 2026 BridgeMind; this fork keeps that licence and adds the theme work on top.
 
 ## License
 

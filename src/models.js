@@ -1318,7 +1318,12 @@ function buildBananaParts() {
       .multiply(new THREE.Matrix4().makeRotationZ(0.32));
     b.add(leaf, husk, m);
   }
-  return b.build();
+  // items.js only rescales a model when it falls outside 0.45–1.8x the slot size, so grow the ear
+  // here to roughly the size the old banana occupied rather than relying on that clamp.
+  const out = b.build();
+  const grow = new THREE.Matrix4().makeScale(1.45, 1.45, 1.45);
+  out.forEach((p) => { if (p.geometry) p.geometry.applyMatrix4(grow); });
+  return out;
 }
 
 function buildMushroomParts() {

@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { THEME } from './config.js';
+import { createLandmarks } from './landmarks.js';
 
 const smoothstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -326,18 +327,19 @@ export function createEnvironment(scene, renderer, root, L) {
   water.renderOrder = 1;
   root.add(water);
 
-  // ------------------------------------------------------------------ mountains (distant, own haze)
+  // ------------------------------------------------------------------ prairie horizon (distant, own haze)
+  // Illinois has no mountains: this is a flat, wide landform band with cornfield striping.
   {
     const rnd = mulberry(99);
     const geos = [];
     const haze = COL.horizon.clone();
-    const grass = new THREE.Color(THEME.grass1), rockC = new THREE.Color(0x9fa39a), snow = new THREE.Color(THEME.white);
-    const count = 22;
+    const grass = new THREE.Color(THEME.grass1), cornC = new THREE.Color(0x9a8f4a), tree = new THREE.Color(0x5f7a63);
+    const count = 26;
     for (let m = 0; m < count; m++) {
       const ang = (m / count) * Math.PI * 2 + rnd() * 0.2;
-      const dist = 1080 + rnd() * 380;
-      const rad = 140 + rnd() * 170, hgt = 170 + rnd() * 260;
-      const g = new THREE.ConeGeometry(rad, hgt, 11, 6).toNonIndexed();
+      const dist = 1080 + rnd() * 460;
+      const rad = 260 + rnd() * 320, hgt = 26 + rnd() * 52;
+      const g = new THREE.ConeGeometry(rad, hgt, 12, 5).toNonIndexed();
       const pos = g.attributes.position;
       const seed = rnd() * 100;
       const colors = new Float32Array(pos.count * 3);
@@ -347,29 +349,28 @@ export function createEnvironment(scene, renderer, root, L) {
         const hr = (y + hgt / 2) / hgt;
         const a = Math.atan2(z, x);
         const nn = fbm(Math.cos(a) * 2 + seed, Math.sin(a) * 2 + hr * 3, 3);
-        const s = 1 + (nn - 0.5) * 0.7 * (1 - hr);
-        x *= s; z *= s; y += (nn - 0.5) * hgt * 0.12 * (1 - hr) * hr * 4;
+        const s = 1 + (nn - 0.5) * 0.5 * (1 - hr);
+        x *= s; z *= s; y += (nn - 0.5) * hgt * 0.1 * (1 - hr) * hr * 4;
         pos.setXYZ(k, x, y, z);
       }
-      // colours by height of each triangle (flat)
+      // colour by height of each triangle (flat): lawn, then a corn band, then a treeline
       for (let k = 0; k < pos.count; k += 3) {
         const yy = (pos.getY(k) + pos.getY(k + 1) + pos.getY(k + 2)) / 3;
-        const hr = (yy + hgt / 2) / hgt + (rnd() - 0.5) * 0.08;
-        c.copy(hr < 0.45 ? grass : hr < 0.74 ? rockC : snow);
-        if (hr >= 0.45 && hr < 0.74) c.lerp(grass, (0.74 - hr) * 1.2);
-        c.lerp(haze, 0.3 + 0.15 * (dist - 1080) / 380);
+        const hr = (yy + hgt / 2) / hgt + (rnd() - 0.5) * 0.1;
+        c.copy(hr < 0.46 ? grass : hr < 0.8 ? cornC : tree);
+        c.lerp(haze, 0.34 + 0.16 * (dist - 1080) / 460);
         for (let j = 0; j < 3; j++) { colors[(k + j) * 3] = c.r; colors[(k + j) * 3 + 1] = c.g; colors[(k + j) * 3 + 2] = c.b; }
       }
       g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
       g.deleteAttribute('uv');
       g.computeVertexNormals();
-      g.translate(cx + Math.cos(ang) * dist, hgt / 2 - 25, cz + Math.sin(ang) * dist);
+      g.translate(cx + Math.cos(ang) * dist, hgt / 2 - 12, cz + Math.sin(ang) * dist);
       geos.push(g);
     }
     const mg = keep(mergeGeometries(geos));
     geos.forEach((g) => g.dispose());
     const mm = new THREE.Mesh(mg, keep(new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, fog: false })));
-    mm.name = 'mountains';
+    mm.name = 'prairie-horizon';
     root.add(mm);
   }
 
@@ -590,10 +591,10 @@ export function createEnvironment(scene, renderer, root, L) {
   }
   {
     const rnd = mulberry(2024);
-    const round = [], pines = [], palms = [], rocks = [], flowers = [], tufts = [], bushes = [];
+    const round = [], pines = [], corn = [], rocks = [], flowers = [], tufts = [], bushes = [];
     const R = ISLAND_R * 0.93;
     let guard = 0;
-    while ((round.length < 700 || pines.length < 420 || palms.length < 110) && guard++ < 90000) {
+    while ((round.length < 700 || pines.length < 420) && guard++ < 90000) {
       const a = rnd() * Math.PI * 2, rr = Math.sqrt(rnd()) * R;
       const x = cx + Math.cos(a) * rr, z = cz + Math.sin(a) * rr;
       const h = natural(x, z);
@@ -604,26 +605,26 @@ export function createEnvironment(scene, renderer, root, L) {
       if (y < WATER + 0.3) continue;
       const beach = h < WATER + 3.2;
       const forest = fbm(x * 0.008 + 11, z * 0.008 - 4, 3);
-      if (beach) {
-        if (palms.length < 110 && rnd() < 0.8) palms.push({ x, y: y - 0.3, z, r: rnd() * 6.28, s: 1.0 + rnd() * 0.45, tilt: (rnd() - 0.5) * 0.3, tilt2: (rnd() - 0.5) * 0.3 });
-        continue;
-      }
+      if (beach) continue;                        // limestone banks: nothing planted on them
       if (forest < 0.42 && rnd() < 0.85) continue;
       if (y > 12 || (forest > 0.62 && rnd() < 0.6)) {
         if (pines.length < 420) pines.push({ x, y: y - 0.3, z, r: rnd() * 6.28, s: 1.1 + rnd() * 0.9 });
       } else if (round.length < 700) round.push({ x, y: y - 0.3, z, r: rnd() * 6.28, s: 1.0 + rnd() * 0.7, hue: rnd() });
     }
-    // palms lining the main straight & lagoon
-    for (let i = 0; i < L.N; i += Math.round(22 / L.ds)) {
-      const nearLake = Math.hypot(L.px[i] - L.lake.x, L.pz[i] - L.lake.z) < L.lake.r + 90;
-      if (!nearLake) continue;
+    // corn belt: seed rows either side of the straights, the way Illinois farms abut a road
+    const onStraight = (t) => (t < 0.11 || t > 0.94 || (t > 0.69 && t < 0.76));
+    for (let i = 0; i < L.N; i += Math.round(26 / L.ds)) {
+      const t = i / L.N;
+      if (!onStraight(t)) continue;
       for (const side of [1, -1]) {
-        const lat = side * ((side > 0 ? L.wallR[i] : L.wallL[i]) + 7 + rnd() * 5);
-        const x = L.px[i] + L.rx[i] * lat, z = L.pz[i] + L.rz[i] * lat;
-        if (!spot(x, z, 5).ok) continue;
-        const y = heightAt(x, z);
-        if (y < WATER + 0.3) continue;
-        palms.push({ x, y: y - 0.3, z, r: rnd() * 6.28, s: 0.9 + rnd() * 0.3, tilt: (rnd() - 0.5) * 0.3, tilt2: (rnd() - 0.5) * 0.3 });
+        for (let k = 0; k < 3; k++) {
+          const lat = side * ((side > 0 ? L.wallR[i] : L.wallL[i]) + 9 + k * 4.5 + rnd() * 3);
+          const x = L.px[i] + L.rx[i] * lat, z = L.pz[i] + L.rz[i] * lat;
+          if (!spot(x, z, 5).ok) continue;
+          const y = heightAt(x, z);
+          if (y < WATER + 0.5) continue;
+          corn.push({ x: x + (rnd() - 0.5) * 2, y: y - 0.2, z: z + (rnd() - 0.5) * 2, r: rnd() * 6.28, s: 0.9 + rnd() * 0.35 });
+        }
       }
     }
     guard = 0;
@@ -680,29 +681,26 @@ export function createEnvironment(scene, renderer, root, L) {
     const pineGreens = [0x2f7d3a, 0x3a8f44, 0x286e34, 0x44a04c];
     instanced(pineTrunk, trunkMat, pines);
     instanced(pineGeo, leafMat, pines, { colors: (it, k) => c.setHex(pineGreens[k % pineGreens.length]) });
-    // palms: curved trunk + drooping fronds
-    const palmTrunkParts = [];
-    for (let k = 0; k < 6; k++) {
-      const g = stripUV(new THREE.CylinderGeometry(0.3 - k * 0.02, 0.36 - k * 0.02, 1.35, 6));
-      g.translate(k * k * 0.035, 0.65 + k * 1.25, 0);
-      palmTrunkParts.push(g);
+    // corn: a tall stalk, four leaves and a cob — the stand-in for the old palms
+    const stalk = paint(stripUV(new THREE.CylinderGeometry(0.09, 0.14, 3.1, 5).translate(0, 1.55, 0)), 0x6f8f3a);
+    const cornParts = [stalk];
+    for (let k = 0; k < 4; k++) {
+      const ang = (k / 4) * Math.PI * 2 + 0.4;
+      const lf = stripUV(new THREE.BoxGeometry(0.16, 1.5, 0.05));
+      const lp = lf.attributes.position;
+      for (let v = 0; v < lp.count; v++) { const yy = lp.getY(v) + 0.75; lp.setX(v, lp.getX(v) * (1 - yy * 0.4)); lp.setZ(v, lp.getZ(v) + yy * 0.5); }
+      lf.computeVertexNormals();
+      lf.rotateX(-0.5);
+      lf.rotateY(ang);
+      lf.translate(Math.sin(ang) * 0.12, 1.05 + (k % 2) * 0.45, Math.cos(ang) * 0.12);
+      cornParts.push(paint(lf, k % 2 ? 0x7fa04a : 0x6f8f3a));
     }
-    const palmTrunkGeo = keep(mergeGeometries(palmTrunkParts)); palmTrunkParts.forEach((g) => g.dispose());
-    const topX = 25 * 0.035, topY = 0.65 + 5 * 1.25 + 0.6;
-    const frondParts = [];
-    for (let k = 0; k < 8; k++) {
-      const f = stripUV(new THREE.BoxGeometry(3.8, 0.08, 0.9, 4, 1, 1));
-      const p = f.attributes.position;
-      for (let v = 0; v < p.count; v++) { const xx = p.getX(v) + 1.9; p.setX(v, xx); p.setY(v, p.getY(v) - 0.09 * xx * xx); p.setZ(v, p.getZ(v) * (1 - xx / 4.5)); }
-      f.rotateY((k / 8) * Math.PI * 2 + (k % 2) * 0.2);
-      f.translate(topX, topY, 0);
-      frondParts.push(f.toNonIndexed()); f.dispose();
-    }
-    frondParts.push(stripUV(new THREE.IcosahedronGeometry(0.45, 0).translate(topX, topY - 0.3, 0)));
-    const frondGeo = keep(mergeGeometries(frondParts)); frondParts.forEach((g) => g.dispose());
-    frondGeo.computeVertexNormals();
-    instanced(palmTrunkGeo, flat({ color: 0xa8804f }), palms);
-    instanced(frondGeo, keep(new THREE.MeshLambertMaterial({ color: 0xffffff, side: THREE.DoubleSide })), palms, { colors: (it, k) => c.setHex([0x3fa34d, 0x52b35a, 0x359447][k % 3]) });
+    const cob = stripUV(new THREE.ConeGeometry(0.11, 0.62, 6).translate(0.17, 1.5, 0.05));
+    cornParts.push(paint(cob, 0xd9b545));
+    const cornGeo = keep(mergeGeometries(cornParts));
+    cornParts.forEach((g) => g.dispose());
+    cornGeo.computeVertexNormals();
+    instanced(cornGeo, leafMat, corn, { colors: () => c.setHex(0xffffff) });
     // bushes
     const bushGeo = keep(stripUV(new THREE.IcosahedronGeometry(1.3, 0)));
     instanced(bushGeo, leafMat, bushes, { colors: (it, k) => c.setHex(greens[(k * 7) % greens.length]).multiplyScalar(0.85) });
@@ -729,19 +727,30 @@ export function createEnvironment(scene, renderer, root, L) {
       lx = x; lz = z;
     }
     const gy = natural(lx, lz);
+    // McFarland Carillon: the campus bell tower on the horizon (this slot used to be a lighthouse)
     const parts = [];
-    parts.push(paint(stripUV(new THREE.CylinderGeometry(6, 8, 10, 9).translate(0, gy - 4, 0)), 0x8f8a80));
-    for (let k = 0; k < 6; k++) {
-      parts.push(paint(stripUV(new THREE.CylinderGeometry(2.6 - k * 0.18, 2.8 - k * 0.18, 3.2, 14).translate(0, gy + 2.6 + k * 3.2, 0)), k % 2 ? 0xffffff : 0xe8322f));
+    parts.push(paint(stripUV(new THREE.CylinderGeometry(6.8, 8.4, 6, 12).translate(0, gy + 3, 0)), THEME.limestone));
+    parts.push(paint(stripUV(new THREE.CylinderGeometry(3.4, 4.4, 22, 12).translate(0, gy + 17, 0)), THEME.stone));
+    parts.push(paint(stripUV(new THREE.CylinderGeometry(4.6, 4.6, 1.2, 12).translate(0, gy + 28.4, 0)), THEME.altgeld));
+    parts.push(paint(stripUV(new THREE.CylinderGeometry(5, 5, 7.5, 12).translate(0, gy + 32.6, 0)), THEME.limestone));
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * Math.PI * 2;
+      const dark = paint(stripUV(new THREE.BoxGeometry(1.7, 4.6, 0.4)), 0x2f4152);
+      dark.rotateY(-a);
+      dark.translate(Math.cos(a) * 5.0, gy + 32.6, Math.sin(a) * 5.0);
+      parts.push(dark);
+      const bell = paint(stripUV(new THREE.CylinderGeometry(0.7, 0.95, 1.2, 8)), THEME.amber);
+      bell.translate(Math.cos(a) * 3.3, gy + 30.8, Math.sin(a) * 3.3);
+      parts.push(bell);
     }
-    const topY = gy + 1 + 6 * 3.2;
-    parts.push(paint(stripUV(new THREE.CylinderGeometry(2.4, 2.4, 0.5, 14).translate(0, topY + 0.2, 0)), 0x333844));
-    parts.push(paint(stripUV(new THREE.CylinderGeometry(1.4, 1.4, 2.4, 10).translate(0, topY + 1.6, 0)), 0xfff3b0));
-    parts.push(paint(stripUV(new THREE.ConeGeometry(2, 1.8, 10).translate(0, topY + 3.7, 0)), 0xc81e1e));
+    parts.push(paint(stripUV(new THREE.CylinderGeometry(5.7, 5.7, 1.1, 12).translate(0, gy + 36.9, 0)), THEME.altgeld));
+    parts.push(paint(stripUV(new THREE.ConeGeometry(4.5, 6, 8).translate(0, gy + 40.5, 0)), THEME.industrial));
+    parts.push(paint(stripUV(new THREE.CylinderGeometry(0.22, 0.22, 3, 6).translate(0, gy + 44.6, 0)), THEME.ink));
+    parts.push(paint(stripUV(new THREE.SphereGeometry(0.5, 10, 8).translate(0, gy + 46.2, 0)), THEME.amber));
     const g = keep(mergeGeometries(parts)); parts.forEach((p) => p.dispose());
     g.translate(lx, 0, lz);
     const lh = new THREE.Mesh(g, keep(new THREE.MeshLambertMaterial({ vertexColors: true })));
-    lh.castShadow = true; lh.name = 'lighthouse';
+    lh.castShadow = true; lh.name = 'carillon';
     root.add(lh);
 
     // sailboats on the sea
@@ -750,7 +759,7 @@ export function createEnvironment(scene, renderer, root, L) {
     for (let v = 0; v < hp.count; v++) if (hp.getZ(v) > 3 && hp.getY(v) > -0.1) hp.setX(v, hp.getX(v) * 0.2);
     const mast = paint(stripUV(new THREE.CylinderGeometry(0.1, 0.1, 8, 5).translate(0, 4.5, 0)), 0x6d4c33);
     const sail = paint(stripUV(new THREE.ConeGeometry(2.4, 7, 3).scale(0.08, 1, 1).translate(0, 4.8, -1.2)), 0xffffff);
-    const stripe = paint(stripUV(new THREE.BoxGeometry(2.45, 0.3, 6.6).translate(0, 0.3, 0)), 0x1e6fe8);
+    const stripe = paint(stripUV(new THREE.BoxGeometry(2.45, 0.3, 6.6).translate(0, 0.3, 0)), THEME.industrial);
     const bg = keep(mergeGeometries([hull, mast, sail, stripe]));
     [hull, mast, sail, stripe].forEach((p) => p.dispose());
     bg.computeVertexNormals();
@@ -767,16 +776,21 @@ export function createEnvironment(scene, renderer, root, L) {
     }
   }
 
+  // ------------------------------------------------------------------ landmarks (campus + mid-autumn)
+  const landmarks = createLandmarks({ root, keep, L, spot, heightAt });
+
   // ------------------------------------------------------------------ API
   return {
     sunLight: sun,
     hemiLight: hemi,
     heightAt,
     setShadowFocus,
+    landmarkNames: landmarks.names,
     update(dt, time) {
       uniforms.uTime.value = time;
       waterMat.uniforms.uTime.value = time;
       cloudGroup.rotation.y = time * 0.004;
+      try { landmarks.update(dt, time); } catch (e) { /* never throw in the frame loop */ }
       for (const b of boats) {
         const u = b.userData;
         const a = u.a + time * u.speed;

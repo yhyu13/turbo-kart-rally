@@ -24,7 +24,7 @@ A kart racer in the spirit of Mario Kart, built with **Three.js r170** as native
 
 | File(s) | Owner | Exports |
 |---|---|---|
-| `src/track.js`, `src/environment.js` | Agent 1 — World | `createTrack(scene, renderer)` |
+| `src/track.js`, `src/environment.js`, `src/landmarks.js`, `src/track-textures.js` | Agent 1 — World | `createTrack(scene, renderer)` |
 | `src/kart.js`, `src/ai.js`, `src/input.js` | Agent 2 — Driving | `Kart`, `resolveKartCollisions`, `AIDriver`, `InputController` |
 | `src/items.js`, `src/effects.js` | Agent 3 — Items & FX | `ItemSystem`, `Effects` |
 | `src/models.js`, `src/camera.js` | Agent 4 — Art & Camera | `createKartModel`, `createItemModel`, `ChaseCamera` |
@@ -59,6 +59,25 @@ export function createTrack(scene, renderer) // -> Track (adds everything to sce
 Surfaces: `boost` pads (dash panels, glowing chevrons) and `jump` ramps (kart gets upward launch) placed on the road.
 Offroad (grass/sand) runs a few meters outside the road before the barrier.
 The race direction at t=0 must match `startPositions[i].heading`.
+
+### 1b. Decor `src/landmarks.js`
+
+```js
+createLandmarks({ root, keep, L, spot, heightAt }) // -> { names, update(dt, time) }
+```
+Pure decoration, owned by the world: campus buildings, the prairie skyline and the mid-autumn props.
+Hard rules it must keep:
+
+- It must never touch the centerline, `resolveWall`, `getSurfaceInfo`, the racing line or item boxes. It
+  is built **after** the track and gets the finished `L` layout, `spot()` (which rejects any patch that
+  overlaps the road or a grandstand) and `heightAt()`.
+- Placement is expressed as `(t along the lap, which side, metres past the barrier)`, never as world
+  coordinates, so it follows the circuit if the CP table changes.
+- One merged, vertex-coloured mesh per landmark (~1 draw call each); `InstancedMesh` only where motion is
+  required (the wind-turbine rotors). Register geometries and materials through `keep()` so the
+  world's `dispose()` reclaims them; `update()` must not throw (it is wrapped in a try/catch anyway).
+- Building colours come from `THEME` in `config.js`. No official University of Illinois marks — the
+  block "I" is drawn as geometry in code.
 
 ## 2. Driving — `src/kart.js`, `src/ai.js`, `src/input.js`
 

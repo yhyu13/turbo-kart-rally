@@ -222,10 +222,30 @@
 
 ---
 
-## 10. 需要你拍板的 5 件事
+## 10. 拍板结果（2026-09-24 用户确认）
 
-1. **名字**：游戏名默认 `ILLINI KART CLASSIC`（`config.js:3` 的 `GAME_TITLE`），赛道名默认 `Illini Campus Circuit`（`track.js:9` 的 `TRACK_NAME`）—— 或者你想保留 Turbo Kart Rally 只换色？
-2. **角色**：`Toadly` / `Koopz` 有马里奥味，要不要改名？8 个角色的配色要不要往橙蓝重排（我的建议：**只微调橙/蓝两个位，保留其余色相的多样性**，否则迷你地图 8 个点会糊成一片）？
-3. **地标真实方位**：赛道布局冻结，所以地标只能"局部符合真实相对位置"（比如 Memorial Stadium + State Farm Center 相邻、Alma Mater 紧挨 Altgeld 与 Union）。要不要为了真实再做取舍（比如砍掉 Siebel）？
-4. **中秋元素**：你另外两个项目都在做中秋，这个 kart 项目要不要沾（我的建议：**不沾**，避免串味）？
-5. **交付形态**：只在本地跑通了算完，还是要推到你自己 fork（`yhyu13/turbo-kart-rally`）并开 GitHub Pages？（如果需要 Pages，那"官方标记"的免责声明就要写得更清楚）
+| # | 问题 | 结论 | 落地情况 |
+|---|---|---|---|
+| 1 | 名字 | `ILLINI KART CLASSIC`；赛道 `Illini Campus Circuit` | ✅ `config.js` / `track.js` / `index.html` / 龙门横幅 |
+| 2 | 角色改名 | 改成 UIUC 教学楼名 | ✅ Lincoln · Altgeld · Siebel · Noyes · Armory · Mumford · Gregory · Bevier（7 字以内，因为 `nameDecalTex` 不做自动缩放）；`id` 未动，统计未动；新增 `mortarboard` 学士帽 |
+| 3 | 地标真实方位取舍 | **不需要**，全部保留 | ✅ 12 处地标全上（见 §4） |
+| 4 | 中秋元素 | **可以沾** | ✅ 平原上一轮满月、开场直道灯笼串、内场月饼糖（见下） |
+| 5 | 交付形态 | 跑通自检 → 试玩 → OK 就 push | ✅ 推分支 `illini-theme` 到 `yhyu13/turbo-kart-rally`，等作者决定是否合入 master |
+
+中秋落地点（克制版，不动玩法）：`landmarks.js` 里的 `full moon`（满月 + 两圈光环 + 月海斑）、`lantern strings`（三轮灯笼串，未光照材质，吃 bloom）、`mooncake stall`（月饼摊：灯笼拱 + 一叠饼盒，放在开场内场），外加赛道旁的玉米地与南瓜干草卷。取景全部在地面元素，天空仍是晴空。
+
+## 11. 实测结果（2026-09-24）
+
+| 指标 | 换色前 | 换色+地标后 | 结论 |
+|---|---|---|---|
+| `centerline mismatches` | 0 | 0 | 赛道几何未动 |
+| `racing line offroad` | 0 | 0 | AI 线未动 |
+| build ms | 487 | 333 | 未变慢 |
+| draw calls（世界部分） | 52 | 69 | +17（地标 12 + 文字牌 3 + 灯笼/月 2），远低于预算 |
+| triangles（世界部分） | 571,488 | 542,702 | **下降 2.9 万**（高耸群山换成平坦平原） |
+| 帧率（1080p，120 帧均值） | — | 59.0 fps / p95 18.2 ms | 跑满 vsync |
+| 单圈自动驾驶 | — | 75 s 内跑完第 1 圈、进入第 2 圈，位置 3/8，无卡死（最长静止 1.5 s） | 玩法正常 |
+| 连续重开 3 次 | — | geometries 396→397→397，textures 56→57→57 | 不泄漏 |
+| `window.__game.errors()` | 空 | 空 | 无运行时错误 |
+
+遗留（未做，明确记录）：§5 里的交通锥 / 校园蓝指示牌 / 长椅车架 / 赛艇替帆船四类小道具未加（场景已够密，性价比低）；赛道旁的 `sand` 贴图仍命名为 sand（语义已是石灰岩），未改名。
