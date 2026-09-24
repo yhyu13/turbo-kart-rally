@@ -13,7 +13,7 @@
 // actually spin. No external assets, no textures except the painted banner lettering.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { THEME as T } from './config.js';
+import { THEME as T, THEME_CSS as CSS } from './config.js';
 
 // ---------------------------------------------------------------------------------------------
 // Tiny geometry toolkit
@@ -64,12 +64,15 @@ class Field {
 }
 
 /** Painted lettering for banners/scoreboards (the only textures in this module). */
+// A 0xRRGGBB number is not a CSS colour: assigning one to fillStyle silently keeps the previous
+// colour, which paints black on black. Accept either and normalise here.
+const cssColor = (c) => (typeof c === 'number' ? '#' + c.toString(16).padStart(6, '0') : c);
 function textTexture(text, { fg = '#f4f4f4', bg = '#13294b', font = 96 } = {}) {
   const c = document.createElement('canvas');
   c.width = 1024; c.height = 256;
   const g = c.getContext('2d');
-  g.fillStyle = bg; g.fillRect(0, 0, c.width, c.height);
-  g.fillStyle = fg;
+  g.fillStyle = cssColor(bg); g.fillRect(0, 0, c.width, c.height);
+  g.fillStyle = cssColor(fg);
   g.font = `900 ${font}px "Lilita One", "Arial Black", Impact, sans-serif`;
   g.textAlign = 'center'; g.textBaseline = 'middle';
   // shrink-to-fit so a long name never bleeds off the board
@@ -119,7 +122,7 @@ function makeLocator(L, heightAt, spot) {
     const rotY = Math.atan2(-out.x, -out.z);
     const m = new THREE.Matrix4().makeRotationY(rotY);
     m.setPosition(x, y, z);
-    return { m, x, y, z, rotY, wall, i, past };
+    return { m, x, y, z, rotY, wall, i, past, roadY: L.py[i] };
   };
 }
 
@@ -393,7 +396,7 @@ export function createLandmarks({ root, keep, L, spot, heightAt }) {
   }
 
   // --- painted lettering, shared by the scoreboard and the water tower ---
-  const letteringTex = textTexture('ILLINOIS', { fg: T.orange, bg: T.blue });
+  const letteringTex = textTexture('ILLINOIS', { fg: CSS.orange, bg: CSS.blue });
   const letteringMat = new THREE.MeshBasicMaterial({ map: letteringTex, toneMapped: false });
   keep(letteringTex); keep(letteringMat);
 
@@ -486,9 +489,59 @@ export function createLandmarks({ root, keep, L, spot, heightAt }) {
     meshes.push(rotors);
   }
 
+  // 13 — a hillside ILLINOIS board facing the climb. Drivers see it the whole way up the hill and
+  // over the crest; it is the payoff for the summit.
+  {
+    const loc = locate(0.265, 1, 66, { minClear: 40, foot: 24 });
+    if (loc) {
+      const f = new Field();
+      const W = 46, H = 11.5;
+      f.add(box(W + 2.4, H + 2, 1.4), T.blue, at(0, H / 2 + 5, 0));
+      for (const sx of [-1, 1]) f.add(box(1.8, 16, 1.8), T.stone, at(sx * (W / 2 - 3), 5, -0.6));
+      f.add(box(W + 1, 0.7, 1.9), T.orange, at(0, 5.1, 0.2));
+      const mesh = emit(f, loc, 'landmark:hillside-board', { pad: [52, 9] });
+      if (mesh) {
+        const face = new THREE.Mesh(new THREE.PlaneGeometry(W, W / 4), letteringMat);
+        face.position.set(0, H / 2 + 5, 0.78).applyMatrix4(loc.m);
+        face.rotation.y = loc.rotY;
+        face.castShadow = false;
+        root.add(face);
+        meshes.push(face);
+        keep(face.geometry);
+      }
+    }
+  }
+
+  // 14 — a rural railroad crossing on the back straight: rails in the tarmac (visual only — there is
+  // no collision here), an X-buck sign and two signals on each verge.
+  {
+    const loc = locate(0.735, 1, 18, { minClear: 15 });
+    if (loc) {
+      // Local +Z points at the track, so the road centreline sits at z = +(wall + past) and a lateral
+      // offset L maps to z = (wall + past) - L.
+      const zc = loc.wall + loc.past;
+      // the anchor stands on the verge, which the corridor sits ~0.6 m below the tarmac
+      const roadDy = (loc.roadY - loc.y) + 0.025;
+      const f = new Field();
+      // Rail heads sit ~4 cm proud of the tarmac; coplanar geometry just z-fights into the road.
+      for (const dz of [-1.5, 1.5]) f.add(box(30, 0.07, 0.5), 0x7b818b, at(0, roadDy + 0.05, zc + dz));
+      for (const dz of [-0.2, -3.0, 3.0]) f.add(box(30, 0.06, 1.6), 0x5a4a3a, at(0, roadDy + 0.035, zc + dz));
+      for (const sx of [-1, 1]) {
+        const z = zc - 16;                       // lateral 16 m: outside the tarmac, inside the barrier
+        f.add(cyl(0.16, 0.2, 3.4, 8), T.ink, at(sx * 16.5, 1.7, z));
+        f.add(box(0.26, 2.1, 0.14), T.white, at(sx * 16.5, 4.2, z, 0, 0, 0.78));
+        f.add(box(0.26, 2.1, 0.14), T.white, at(sx * 16.5, 4.2, z, 0, 0, -0.78));
+        f.add(box(0.9, 1.1, 0.5), T.ink, at(sx * 16.5, 6.2, z));
+        f.add(sph(0.26, 10, 8), 0xd42a1a, at(sx * 16.5 - 0.4, 6.2, z - 0.3));
+        f.add(sph(0.26, 10, 8), 0xd42a1a, at(sx * 16.5 + 0.4, 6.2, z - 0.3));
+      }
+      emit(f, loc, 'landmark:railroad-crossing', { pad: [34, 16] });
+    }
+  }
+
   // 11 — pennants + the campus flag over the home stand
   {
-    const bannerTex = textTexture('GO ILLINI', { fg: T.white, bg: T.orange, font: 116 });
+    const bannerTex = textTexture('GO ILLINI', { fg: CSS.white, bg: CSS.orange, font: 116 });
     const bannerMat = new THREE.MeshBasicMaterial({ map: bannerTex, toneMapped: false });
     keep(bannerTex); keep(bannerMat);
     const loc = locate(0.985, -1, 22, { minClear: 16 });
@@ -504,7 +557,7 @@ export function createLandmarks({ root, keep, L, spot, heightAt }) {
 
   // 12 — the "welcome to the circuit" boards at either end of the main straight
   {
-    const signTex = textTexture('ILLINI KART CLASSIC', { fg: T.amber, bg: T.blue, font: 92 });
+    const signTex = textTexture('ILLINI KART CLASSIC', { fg: CSS.amber, bg: CSS.blue, font: 92 });
     const signMat = new THREE.MeshBasicMaterial({ map: signTex, toneMapped: false });
     keep(signTex); keep(signMat);
     for (const [t, side] of [[0.955, -1], [0.03, 1]]) {

@@ -186,7 +186,9 @@ export function makeBoostTexture() {
   return finish(c);
 }
 
-// Jump ramp top: blue/white stripes with yellow arrow; v along ramp.
+// Jump ramp top: blue/white stripes with a yellow arrow pointing along the ramp.
+// The ramp patch is about 20 m wide by 9 m long, so the arrow is drawn narrow in u and tall in v —
+// a square arrow comes out looking like it points sideways.
 export function makeRampTexture() {
   const W = 256, H = 256;
   const [c, ctx] = canvas(W, H);
@@ -197,8 +199,14 @@ export function makeRampTexture() {
   ctx.fillStyle = T.amber;
   ctx.strokeStyle = '#1a1a2e'; ctx.lineWidth = 6;
   ctx.beginPath();
-  ctx.moveTo(128, 20); ctx.lineTo(210, 120); ctx.lineTo(160, 120); ctx.lineTo(160, 236);
-  ctx.lineTo(96, 236); ctx.lineTo(96, 120); ctx.lineTo(46, 120); ctx.closePath();
+  ctx.moveTo(128, 26);
+  ctx.lineTo(172, 132);
+  ctx.lineTo(148, 132);
+  ctx.lineTo(148, 232);
+  ctx.lineTo(108, 232);
+  ctx.lineTo(108, 132);
+  ctx.lineTo(84, 132);
+  ctx.closePath();
   ctx.fill(); ctx.stroke();
   return finish(c, { repeat: false });
 }

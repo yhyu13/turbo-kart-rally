@@ -126,7 +126,9 @@ export function createEnvironment(scene, renderer, root, L) {
   scene.fog = new THREE.Fog(COL.horizon.clone(), 380, 1550);
 
   // ------------------------------------------------------------------ lights
-  const hemi = new THREE.HemisphereLight(THEME.arches, THEME.grass1, 1.25);
+  // Slightly brighter sky fill than upstream: the landmarks are the point of this fork, and their
+  // shaded faces were reading almost black against the bright tarmac.
+  const hemi = new THREE.HemisphereLight(THEME.arches, THEME.grass1, 1.45);
   scene.add(hemi);
   const sun = new THREE.DirectionalLight(0xfff0d8, 2.8);
   sun.castShadow = true;
