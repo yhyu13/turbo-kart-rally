@@ -148,6 +148,29 @@ export function createEnvironment(scene, renderer, root, L) {
   }
   setShadowFocus(L.startPositions[0]?.position || new THREE.Vector3());
 
+  // ------------------------------------------------------------------ landforms
+  // The circuit climbs a real hill and drops into a real hollow, so the landform is authored here
+  // rather than faked by dragging the terrain up to the road. Positive shapes take the max of their
+  // contributions (a ridge, not a pile-up); negative ones sum.
+  const LANDFORMS = [
+    { x: 264, z: 290, r: 300, h: 34, e: 1.2 },    // the summit the lap climbs to
+    { x: 285, z: 150, r: 280, h: 20, e: 1.2 },    // the shoulder the S-bend runs down
+    { x: 300, z: -180, r: 260, h: 16, e: 1.2 },   // the rise the bridge crosses
+    { x: -150, z: -335, r: 230, h: -8, e: 1.4 },  // the hollow holding the hairpin
+  ];
+  function landform(x, z) {
+    let up = 0, down = 0;
+    for (const f of LANDFORMS) {
+      const dx = (x - f.x) / f.r, dz = (z - f.z) / f.r;
+      const d2 = dx * dx + dz * dz;
+      if (d2 >= 1) continue;
+      const w = Math.pow(1 - d2, f.e);
+      if (f.h >= 0) up = Math.max(up, f.h * w);
+      else down += f.h * w;
+    }
+    return up + down;
+  }
+
   // ------------------------------------------------------------------ terrain
   function natural(x, z) {
     const dx = x - cx, dz = z - cz;
@@ -156,12 +179,16 @@ export function createEnvironment(scene, renderer, root, L) {
     const ang = Math.atan2(dz, dx);
     const hillMask = smoothstep(0.58, 0.8, r) * (1 - smoothstep(0.86, 0.95, r)) * (0.45 + 0.55 * Math.max(0, Math.sin(ang * 3 + 1.3)));
     h += hillMask * (14 + 34 * fbm(x * 0.012 + 3, z * 0.012 - 7));
+    h += landform(x, z);
     h = lerp(h, -16, smoothstep(0.9, 1.06, r));
     const dl = Math.hypot(x - L.lake.x, z - L.lake.z);
     h = lerp(h, -9 - 3 * fbm(x * 0.03, z * 0.03), 1 - smoothstep(L.lake.r * 0.72, L.lake.r + 14, dl));
     return h;
   }
   const corridor = { w: 0, y: 0, d: 0, wall: 0, i: -1 };
+  // How far out the terrain is dragged toward the road profile. Wide enough that a 30 m climb does
+  // not leave the road on a vertical earth wall, tight enough that the island keeps its own shape.
+  const CORRIDOR_BLEND = 72;
   function corridorAt(x, z) {
     const q = L.nearest(x, z, true);
     corridor.i = q.i;
@@ -170,7 +197,7 @@ export function createEnvironment(scene, renderer, root, L) {
     const lat = (x - L.px[i]) * L.rx[i] + (z - L.pz[i]) * L.rz[i];
     const wall = lat >= 0 ? L.wallR[i] : L.wallL[i];
     corridor.d = d; corridor.wall = wall; corridor.y = L.py[i];
-    corridor.w = (1 - smoothstep(wall + 4, wall + 58, d)) * (1 - L.bridge[i]);
+    corridor.w = (1 - smoothstep(wall + 4, wall + CORRIDOR_BLEND, d)) * (1 - L.bridge[i]);
     return corridor;
   }
   function heightAt(x, z) {
@@ -784,6 +811,9 @@ export function createEnvironment(scene, renderer, root, L) {
     sunLight: sun,
     hemiLight: hemi,
     heightAt,
+    // Terrain height under an arbitrary point (blended toward the road inside the corridor). The
+    // chase camera uses this to stay out of the embankments on the steep grades.
+    groundAt: (x, z) => heightAt(x, z),
     setShadowFocus,
     landmarkNames: landmarks.names,
     update(dt, time) {

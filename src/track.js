@@ -14,31 +14,38 @@ const HALF_W = 12;              // road half width (roadWidth = 24)
 const GRID_CELL = 40;
 
 // Control points [x, y, z] (x/z scaled by SCALE). Race direction = list order. CP0 = start/finish line.
+//
+// y is the elevation profile, and it carries the lap: a start straight at grade, a long climb to a
+// summit at CP6 (+34, the whole campus opens up from there), a fast plunging S-bend, a climb onto a
+// 20 m bridge over the lagoon, the circuit's big drop at CP13 → CP14 (the lip is steep enough that a
+// kart at full speed or on a boost leaves the ground), then a descent into the hairpin, which sits in
+// the lowest ground on the lap (-6). 40 m of range, worst grade about 22 %.
+// x/z are frozen: changing them moves corners, landmarks, the bridge and the item rows.
 const CP = [
-  [0, 0, -60],      // 0  start / finish (main straight, heading +Z)
-  [0, 0, 60],       // 1
-  [2, 0, 175],      // 2
-  [22, 1, 258],     // 3  big sweeping left
-  [80, 3, 302],     // 4
-  [160, 5, 296],    // 5
-  [230, 6, 252],    // 6  sweeping right
-  [262, 6, 182],    // 7
-  [238, 5, 118],    // 8  S-bend
-  [292, 4, 64],     // 9
-  [258, 4, 4],      // 10
-  [296, 6, -62],    // 11 climb to the bridge
-  [304, 10, -140],  // 12 bridge over the lagoon
-  [284, 10, -212],  // 13
-  [226, 6, -262],   // 14 downhill jump
-  [150, 3, -284],   // 15
-  [66, 1, -300],    // 16
-  [-20, 0, -318],   // 17 into the hairpin
-  [-96, 0, -322],   // 18
-  [-128, 0, -292],  // 19 hairpin apex
-  [-106, 0, -256],  // 20
-  [-50, 0, -236],   // 21
-  [-8, 0, -196],    // 22
-  [0, 0, -140],     // 23
+  [0, 1.5, -60],    // 0  start / finish (main straight, heading +Z)
+  [0, 2.5, 60],     // 1  flat opening straight
+  [2, 5, 175],      // 2  the grade starts to bite
+  [22, 14, 258],    // 3  climbing hard into the big sweeping left
+  [80, 24, 302],    // 4  steepest climb on the lap, about 12 %
+  [160, 30, 296],   // 5  still climbing
+  [230, 34, 252],   // 6  SUMMIT — sweeping right over the top, the campus opens up
+  [262, 30, 182],   // 7  over the crest
+  [238, 18, 118],   // 8  plunge 1 — the S-bend falls away from the summit
+  [292, 10, 64],    // 9
+  [258, 6, 4],      // 10 bottom of the descent
+  [296, 8, -62],    // 11 climbing onto the bridge
+  [304, 20, -140],  // 12 bridge over the lagoon, ~21 m of air under the deck
+  [284, 20, -212],  // 13 the lip
+  [226, 2, -262],   // 14 plunge 2 — 18 m in 88 m; boosting off the lip gets you airborne
+  [150, 1, -284],   // 15 flat-out at the bottom
+  [66, 5, -300],    // 16 crest 1 of the whoop section
+  [-20, 2.5, -318], // 17 dip between the crests
+  [-96, 6, -322],   // 18 crest 2, then it dives for the hairpin
+  [-128, 1.5, -292],// 19 hairpin apex — the lowest point, sitting in a hollow
+  [-106, 2, -256],  // 20 climbing back out
+  [-50, 3.5, -236], // 21
+  [-8, 3, -196],    // 22
+  [0, 2, -140],     // 23 back to the grandstand tunnel
 ];
 
 // Lagoon crossed by the bridge (world coords). Shared with environment.
@@ -252,6 +259,10 @@ export function createTrack(scene, renderer) {
     const i = nearestToCP(4.15);
     addPad(i, race[i]); addPad(i + padStep, race[(i + padStep) % N]);
   }
+  { // cluster D — the climb onto the bridge is the steepest grade on the lap; give it a hand
+    const i = nearestToCP(11.15);
+    addPad(i, -5); addPad(i + padStep, 3);
+  }
 
   // Jump ramps
   const RAMP_LEN = Math.max(4, Math.round(9 / ds));
@@ -259,6 +270,7 @@ export function createTrack(scene, renderer) {
   const addRamp = (sIdx, hw = 10, h = 1.7) => ramps.push({ s0: ((sIdx % N) + N) % N, len: RAMP_LEN, hw, h });
   addRamp(nearestToCP(14.35));                // downhill after the bridge
   addRamp(nearestToCP(4.65), 9, 1.5);         // top of the big sweeper
+  addRamp(nearestToCP(6.55), 10, 1.9);        // over the summit crest — you leave the ground here
 
   // Item box rows
   const itemBoxPositions = [];
@@ -726,6 +738,7 @@ export function createTrack(scene, renderer) {
     jumpRamps: ramps.map((r) => ({ t: r.s0 / N, length: r.len * ds, halfWidth: r.hw, height: r.h })),
     waterLevel: WATER_LEVEL,
     sunLight: env.sunLight,
+    groundAt: env.groundAt,
     getWallOffsets(t) {
       const s = (((t % 1) + 1) % 1) * N, a = Math.floor(s) % N, b = (a + 1) % N, f = s - Math.floor(s);
       return { left: lerpArr(wallL, a, b, f), right: lerpArr(wallR, a, b, f) };

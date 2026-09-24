@@ -12,6 +12,8 @@ const smoothstep = (t) => t * t * (3 - 2 * t);
 const lerp = (a, b, t) => a + (b - a) * t;
 
 const INTRO_TIME = 4.0;
+// Minimum metres the chase camera keeps above the terrain under it (see _groundAt).
+const CAM_GROUND_CLEAR = 1.6;
 
 export class ChaseCamera {
   constructor(camera) {
@@ -96,6 +98,12 @@ export class ChaseCamera {
     this._desired.set(-fx * dist, this.height + slopeLift - boostAmt * 0.15, -fz * dist);
     const la = this.lookAhead + speedFrac * 0.8;
     this._desiredLook.set(fx * la, this.lookHeight + this.slope * la * 0.6, fz * la);
+  }
+
+  _groundAt(x, z) {
+    const t = this.target && this.target.track;
+    if (!t || typeof t.groundAt !== 'function') return null;
+    try { const g = t.groundAt(x, z); return fin(g, 0); } catch (e) { return null; }
   }
 
   update(dt, kart, opts = {}) {
@@ -187,6 +195,11 @@ export class ChaseCamera {
       const minY = kp.y + (mode === 'intro' ? 1.2 : 0.8);
       if (this.camY < minY) this.camY = minY;
       if (this.camY > kp.y + 18) this.camY = kp.y + 18;
+      // Never let the hillside climb into the camera. On a 20 % plunge the ground behind the kart is
+      // higher than the kart itself, and a plain kart-relative height buries the camera in the bank.
+      const gx = kp.x + this.offset.x, gz = kp.z + this.offset.z;
+      const ground = this._groundAt(gx, gz);
+      if (ground !== null && this.camY < ground + CAM_GROUND_CLEAR) this.camY = ground + CAM_GROUND_CLEAR;
       this.lookOffset.lerp(this._desiredLook, k(lookRate, dt));
 
       this.fov = lerp(this.fov, clamp(fovTarget, 40, this.maxFov), k(3.5, dt));
@@ -237,6 +250,8 @@ export class ChaseCamera {
     this.offset.copy(this._desired);
     this.lookOffset.copy(this._desiredLook);
     this.camY = info.pos.y + this._desired.y;
+    const g = this._groundAt(info.pos.x + this._desired.x, info.pos.z + this._desired.z);
+    if (g !== null && this.camY < g + CAM_GROUND_CLEAR) this.camY = g + CAM_GROUND_CLEAR;
     this.roll = 0;
     this.shake = 0;
     this.initialized = true;

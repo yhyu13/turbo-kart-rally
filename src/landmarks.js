@@ -91,14 +91,28 @@ function textTexture(text, { fg = '#f4f4f4', bg = '#13294b', font = 96 } = {}) {
 function makeLocator(L, heightAt, spot) {
   const N = L.N;
   const v = new THREE.Vector3();
-  return function locate(t, side, past, { minClear = 14, sink = 0.4 } = {}) {
+  return function locate(t, side, past, { minClear = 14, sink = 0.4, foot = 0 } = {}) {
     const i = ((Math.round(((t % 1) + 1) % 1 * N)) % N + N) % N;
     const wall = side > 0 ? L.wallR[i] : L.wallL[i];
     const lat = side * (wall + past);
     const x = L.px[i] + L.rx[i] * lat, z = L.pz[i] + L.rz[i] * lat;
     const check = spot(x, z, minClear);
     if (!check.ok) return null;
-    const y = heightAt(x, z) - sink;
+    let y = heightAt(x, z) - sink;
+    // On a climb the ground under a long building slopes; take the highest sample of the whole
+    // footprint so nothing digs in at the uphill end (the pad hides the gap at the other end).
+    if (foot > 0) {
+      const hl = Math.hypot(L.tx[i], L.tz[i]) || 1;
+      const fx = L.tx[i] / hl, fz = L.tz[i] / hl;
+      const halfAlong = foot, halfSide = Math.max(7, foot * 0.5);
+      for (const a of [-1, 0, 1]) {
+        for (const sd of [-1, 0, 1]) {
+          const gx = x + fx * a * halfAlong + L.rx[i] * side * sd * halfSide;
+          const gz = z + fz * a * halfAlong + L.rz[i] * side * sd * halfSide;
+          y = Math.max(y, heightAt(gx, gz) - sink);
+        }
+      }
+    }
     if (y < L.waterLevel + 0.5) return null;           // never plant a building in the water
     // local +Z faces the track: outward is `side * right`, so face the other way
     const out = v.set(L.rx[i] * side, 0, L.rz[i] * side);
@@ -347,8 +361,22 @@ export function createLandmarks({ root, keep, L, spot, heightAt }) {
   let rotors = null, rotorData = null;
 
   /** Merge a field and drop it into the world at `loc`. Returns the mesh (or null). */
-  function emit(field, loc, name, { cast = true, receive = true, material = null } = {}) {
+  function emit(field, loc, name, { cast = true, receive = true, material = null, pad = null } = {}) {
     if (!loc) { warns.push(name); return null; }
+    // A terrace under the building: the hillside drops away on the downhill side, so without this
+    // the far corner hangs in the air.
+    if (pad) {
+      const geo = new THREE.BoxGeometry(pad[0], 30, pad[1]).translate(0, -14.9, 0);
+      geo.applyMatrix4(loc.m);
+      const mat = new THREE.MeshLambertMaterial({ color: T.stone });
+      const terrace = new THREE.Mesh(geo, mat);
+      terrace.name = `${name}:terrace`;
+      terrace.castShadow = false;
+      terrace.receiveShadow = true;
+      root.add(terrace);
+      keep(geo); keep(mat);
+      meshes.push(terrace);
+    }
     const geo = field.merge();
     if (!geo) { warns.push(name); return null; }
     geo.applyMatrix4(loc.m);
@@ -374,31 +402,31 @@ export function createLandmarks({ root, keep, L, spot, heightAt }) {
   {
     const f = new Field();
     const extra = memorialStadium(f, letteringMat);
-    const loc = locate(0.985, 1, 30, { minClear: 18 });
-    const mesh = emit(f, loc, 'landmark:memorial-stadium');
+    const loc = locate(0.985, 1, 30, { minClear: 18, foot: 50 });
+    const mesh = emit(f, loc, 'landmark:memorial-stadium', { pad: [104, 34] });
     if (mesh && extra) {
       extra.applyMatrix4(loc.m);
       root.add(extra);
       keep(extra.geometry);
     }
   }
-  emit((() => { const f = new Field(); assemblyHall(f); return f; })(), locate(0.99, -1, 40, { minClear: 22 }), 'landmark:assembly-hall');
+  emit((() => { const f = new Field(); assemblyHall(f); return f; })(), locate(0.99, -1, 40, { minClear: 22, foot: 24 }), 'landmark:assembly-hall', { pad: [52, 52] });
 
   // 3 + 4 — the Union and Alma Mater, outside the big left-hand sweep
-  emit((() => { const f = new Field(); illiniUnion(f); return f; })(), locate(0.145, -1, 30), 'landmark:illini-union');
-  emit((() => { const f = new Field(); almaMater(f); return f; })(), locate(0.205, -1, 19, { minClear: 12 }), 'landmark:alma-mater');
+  emit((() => { const f = new Field(); illiniUnion(f); return f; })(), locate(0.145, -1, 30, { foot: 22 }), 'landmark:illini-union', { pad: [48, 30] });
+  emit((() => { const f = new Field(); almaMater(f); return f; })(), locate(0.205, -1, 19, { minClear: 12, foot: 11 }), 'landmark:alma-mater', { pad: [28, 24] });
 
   // 5 — Altgeld Hall on the outside of the following right-hander
-  emit((() => { const f = new Field(); altgeldHall(f); return f; })(), locate(0.245, -1, 28), 'landmark:altgeld-hall');
+  emit((() => { const f = new Field(); altgeldHall(f); return f; })(), locate(0.245, -1, 28, { foot: 20 }), 'landmark:altgeld-hall', { pad: [42, 30] });
 
   // 6 — Foellinger's dome, inside the sweeper, read across the grass on the way to the S-bend
-  emit((() => { const f = new Field(); foellinger(f); return f; })(), locate(0.325, 1, 46, { minClear: 26 }), 'landmark:foellinger');
+  emit((() => { const f = new Field(); foellinger(f); return f; })(), locate(0.325, 1, 46, { minClear: 26, foot: 18 }), 'landmark:foellinger', { pad: [42, 42] });
 
   // 7 — Siebel Center on the climb toward the bridge
-  emit((() => { const f = new Field(); siebelCenter(f); return f; })(), locate(0.50, -1, 32), 'landmark:siebel-center');
+  emit((() => { const f = new Field(); siebelCenter(f); return f; })(), locate(0.50, -1, 32, { foot: 24 }), 'landmark:siebel-center', { pad: [50, 34] });
 
   // 8 — Morrow Plots in the infield of the back straight
-  emit((() => { const f = new Field(); morrowPlots(f); return f; })(), locate(0.695, 1, 20), 'landmark:morrow-plots');
+  emit((() => { const f = new Field(); morrowPlots(f); return f; })(), locate(0.695, 1, 20, { foot: 30 }), 'landmark:morrow-plots', { pad: [62, 32] });
 
   // 10 — the prairie town far out past the water, clear of the fog
   {
@@ -569,7 +597,7 @@ export function createLandmarks({ root, keep, L, spot, heightAt }) {
       root.add(mesh); keep(geo); keep(mat); meshes.push(mesh);
     }
     // the mooncake stall: a little pavilion, lantern arch, stacked tins (infield, so it is seen)
-    const loc = locate(0.062, 1, 20, { minClear: 16 });
+    const loc = locate(0.062, 1, 20, { minClear: 16, foot: 9 });
     if (loc) {
       const sf = new Field();
       const arch = new Field();
@@ -587,7 +615,7 @@ export function createLandmarks({ root, keep, L, spot, heightAt }) {
         arch.add(sph(0.5, 10, 8), 0xff6a1a, at(x, 6.3 - Math.abs(k - 3) * 0.22, 0, 0, 0, 0, new THREE.Vector3(1, 0.78, 1)));
         arch.add(box(0.05, 0.7, 0.05), T.amber, at(x, 6.9 - Math.abs(k - 3) * 0.22, 0));
       }
-      emit(sf, loc, 'landmark:mooncake-stall');
+      emit(sf, loc, 'landmark:mooncake-stall', { pad: [20, 14] });
       const geo = arch.merge();
       const mat = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false });
       const mesh = new THREE.Mesh(geo, mat);
