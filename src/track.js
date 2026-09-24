@@ -118,6 +118,17 @@ export function createTrack(scene, renderer) {
   }
   bridge = smoothCircular(bridge, 8, 1);
 
+  // banked corners — raise the outside of the fast curves, the way a real circuit is cambered.
+  // The kart rolls with the surface normal (kart.js _animate), so the feel follows for free.
+  const MAX_BANK = 0.14;                       // ~8°: enough to feel, small enough to be safe
+  let bank = new Float32Array(N);
+  for (let i = 0; i < N; i++) bank[i] = clamp(kS[i] * 13, -MAX_BANK, MAX_BANK);
+  bank = smoothCircular(bank, 20, 2);
+  const bankTan = new Float32Array(N);
+  for (let i = 0; i < N; i++) bankTan[i] = Math.tan(bank[i] * (1 - bridge[i]));
+  // Vertical offset of the road surface at a lateral offset — one entry point for every profile.
+  const bankDy = (i, lat) => bankTan[i] * lat;
+
   // wall offsets (distance from centerline to barrier inner face)
   const wallBase = (side) => {
     const w = new Float32Array(N);
@@ -277,7 +288,7 @@ export function createTrack(scene, renderer) {
   const itemRowIdx = [1.25, 6.5, 9.2, 12.5, 16.4, 21.6].map(nearestToCP);
   for (const i of itemRowIdx) {
     for (const lat of [-8, -4, 0, 4, 8]) {
-      itemBoxPositions.push(new THREE.Vector3(px[i] + rx[i] * lat, py[i] + 1.4, pz[i] + rz[i] * lat));
+      itemBoxPositions.push(new THREE.Vector3(px[i] + rx[i] * lat, py[i] + 1.4 + bankDy(i, lat), pz[i] + rz[i] * lat));
     }
   }
 
@@ -292,10 +303,11 @@ export function createTrack(scene, renderer) {
     const { a, b, f } = pr;
     const lat = pr.lat;
     const t = (pr.s / N) % 1;
-    let height = pr.y;
-    // slope normal = right × tangent
+    let height = pr.y + lerpArr(bankTan, a, b, f) * lat;
+    // surface normal = (right + up·tan(bank)) × tangent — carries both the grade and the camber
     const Tx = lerpArr(tx, a, b, f), Ty = lerpArr(ty, a, b, f), Tz = lerpArr(tz, a, b, f);
-    const normal = new THREE.Vector3(-pr.rz * Ty, pr.rz * Tx - pr.rx * Tz, pr.rx * Ty).normalize();
+    const bt = lerpArr(bankTan, a, b, f);
+    const normal = new THREE.Vector3(bt * Tz - pr.rz * Ty, pr.rz * Tx - pr.rx * Tz, pr.rx * Ty - bt * Tx).normalize();
     const onRoad = Math.abs(lat) <= HALF_W;
     let surface = onRoad ? 'road' : 'offroad';
     if (onRoad) {
@@ -436,7 +448,7 @@ export function createTrack(scene, renderer) {
   // ------------------------------------------------------------------ road surface
   const asphaltTex = TX.makeAsphaltTexture();
   const roadMat = mat(new THREE.MeshStandardMaterial({ map: asphaltTex, roughness: 0.88, metalness: 0.0 }));
-  addMesh(extrude(0, N, () => [[-HALF_W, 0], [0, 0], [HALF_W, 0]], { across: [0, 0.5, 1], alongScale: 22, step: 1 }), roadMat, { name: 'road' });
+  addMesh(extrude(0, N, (i) => [[-HALF_W, bankDy(i, -HALF_W)], [0, 0], [HALF_W, bankDy(i, HALF_W)]], { across: [0, 0.5, 1], alongScale: 22, step: 1 }), roadMat, { name: 'road' });
 
   // Curbs through corners (raised red/white rumble strips)
   const curbMat = mat(new THREE.MeshStandardMaterial({ map: TX.makeCurbTexture(), roughness: 0.6 }));
@@ -447,8 +459,8 @@ export function createTrack(scene, renderer) {
   for (let i = 0; i < N; i++) if (bridge[i] > 0.05) curbMask[i] = 0;
   const curbGeos = [];
   for (const [a, b] of runs((i) => curbMask[i], 10)) {
-    curbGeos.push(extrude(a, b, () => [[HALF_W - 1.4, 0.0], [HALF_W - 1.1, 0.08], [HALF_W + 0.7, 0.08], [HALF_W + 0.9, -0.05]], { across: [0, 0.15, 0.9, 1], alongScale: 4 }));
-    curbGeos.push(extrude(a, b, () => [[-HALF_W - 0.9, -0.05], [-HALF_W - 0.7, 0.08], [-HALF_W + 1.1, 0.08], [-HALF_W + 1.4, 0.0]], { across: [0, 0.1, 0.85, 1], alongScale: 4 }));
+    curbGeos.push(extrude(a, b, (i) => [[HALF_W - 1.4, bankDy(i, HALF_W - 1.4)], [HALF_W - 1.1, 0.08 + bankDy(i, HALF_W - 1.1)], [HALF_W + 0.7, 0.08 + bankDy(i, HALF_W + 0.7)], [HALF_W + 0.9, -0.05 + bankDy(i, HALF_W + 0.9)]], { across: [0, 0.15, 0.9, 1], alongScale: 4 }));
+    curbGeos.push(extrude(a, b, (i) => [[-HALF_W - 0.9, -0.05 + bankDy(i, -HALF_W - 0.9)], [-HALF_W - 0.7, 0.08 + bankDy(i, -HALF_W - 0.7)], [-HALF_W + 1.1, 0.08 + bankDy(i, -HALF_W + 1.1)], [-HALF_W + 1.4, bankDy(i, -HALF_W + 1.4)]], { across: [0, 0.1, 0.85, 1], alongScale: 4 }));
   }
   if (curbGeos.length) addMesh(mergeGeometries(curbGeos), curbMat, { name: 'curbs' });
   curbGeos.forEach((g) => g.dispose());
@@ -459,8 +471,8 @@ export function createTrack(scene, renderer) {
   const concreteMat = mat(new THREE.MeshStandardMaterial({ map: TX.makeConcreteTexture(), roughness: 0.9 }));
   const bandGeos = [], deckGeos = [];
   for (const [a, b] of runs((i) => bridge[i] < 0.5, 5)) {
-    bandGeos.push(extrude(a, b, (i) => [[HALF_W - 0.2, -0.03], [wallR[i] + 0.35, -0.03]], { acrossScale: 6, alongScale: 6 }));
-    bandGeos.push(extrude(a, b, (i) => [[-wallL[i] - 0.35, -0.03], [-HALF_W + 0.2, -0.03]], { acrossScale: 6, alongScale: 6 }));
+    bandGeos.push(extrude(a, b, (i) => [[HALF_W - 0.2, -0.03 + bankDy(i, HALF_W - 0.2)], [wallR[i] + 0.35, -0.03 + bankDy(i, wallR[i] + 0.35)]], { acrossScale: 6, alongScale: 6 }));
+    bandGeos.push(extrude(a, b, (i) => [[-wallL[i] - 0.35, -0.03 + bankDy(i, -wallL[i] - 0.35)], [-HALF_W + 0.2, -0.03 + bankDy(i, -HALF_W + 0.2)]], { acrossScale: 6, alongScale: 6 }));
   }
   const bridgeRuns = runs((i) => bridge[i] >= 0.5, 5);
   for (const [a, b] of bridgeRuns) {
@@ -505,13 +517,13 @@ export function createTrack(scene, renderer) {
       const h = kind === 'rail' ? 1.1 : WALL_H;
       for (const [a, b] of runs((i) => typ[i] === kind, 4)) {
         if (side > 0) {
-          faces.push(extrude(a, b, (i) => [[W[i], bottom], [W[i], h]], { across: [vMap(bottom), vMap(h)], alongScale: TEX_LEN, alongSign: -1, swap: true }));
-          wallTops.push(extrude(a, b, (i) => [[W[i], h], [W[i] + WALL_T, h]], { across: [0, 1], alongScale: TEX_LEN }));
-          faces.push(extrude(a, b, (i) => [[W[i] + WALL_T, h], [W[i] + WALL_T, bottom]], { across: [vMap(h), vMap(bottom)], alongScale: TEX_LEN, swap: true }));
+          faces.push(extrude(a, b, (i) => [[W[i], bottom + bankDy(i, W[i])], [W[i], h + bankDy(i, W[i])]], { across: [vMap(bottom), vMap(h)], alongScale: TEX_LEN, alongSign: -1, swap: true }));
+          wallTops.push(extrude(a, b, (i) => [[W[i], h + bankDy(i, W[i])], [W[i] + WALL_T, h + bankDy(i, W[i] + WALL_T)]], { across: [0, 1], alongScale: TEX_LEN }));
+          faces.push(extrude(a, b, (i) => [[W[i] + WALL_T, h + bankDy(i, W[i] + WALL_T)], [W[i] + WALL_T, bottom + bankDy(i, W[i] + WALL_T)]], { across: [vMap(h), vMap(bottom)], alongScale: TEX_LEN, swap: true }));
         } else {
-          faces.push(extrude(a, b, (i) => [[-W[i] - WALL_T, bottom], [-W[i] - WALL_T, h]], { across: [vMap(bottom), vMap(h)], alongScale: TEX_LEN, alongSign: -1, swap: true }));
-          wallTops.push(extrude(a, b, (i) => [[-W[i] - WALL_T, h], [-W[i], h]], { across: [0, 1], alongScale: TEX_LEN }));
-          faces.push(extrude(a, b, (i) => [[-W[i], h], [-W[i], bottom]], { across: [vMap(h), vMap(bottom)], alongScale: TEX_LEN, swap: true }));
+          faces.push(extrude(a, b, (i) => [[-W[i] - WALL_T, bottom + bankDy(i, -W[i] - WALL_T)], [-W[i] - WALL_T, h + bankDy(i, -W[i] - WALL_T)]], { across: [vMap(bottom), vMap(h)], alongScale: TEX_LEN, alongSign: -1, swap: true }));
+          wallTops.push(extrude(a, b, (i) => [[-W[i] - WALL_T, h + bankDy(i, -W[i] - WALL_T)], [-W[i], h + bankDy(i, -W[i])]], { across: [0, 1], alongScale: TEX_LEN }));
+          faces.push(extrude(a, b, (i) => [[-W[i], h + bankDy(i, -W[i])], [-W[i], bottom + bankDy(i, -W[i])]], { across: [vMap(h), vMap(bottom)], alongScale: TEX_LEN, swap: true }));
         }
       }
     }
@@ -540,7 +552,7 @@ export function createTrack(scene, renderer) {
           const lat = side * (W[i] + TR);
           const x = px[i] + rx[i] * lat, z = pz[i] + rz[i] * lat;
           acc += Math.hypot(x - lx, z - lz); lx = x; lz = z;
-          if (acc >= TR * 1.95) { acc = 0; places.push({ x, y: py[i], z, stack: stack++ }); }
+          if (acc >= TR * 1.95) { acc = 0; places.push({ x, y: py[i] + bankDy(i, lat), z, stack: stack++ }); }
         }
       }
     }
@@ -598,7 +610,7 @@ export function createTrack(scene, renderer) {
   }));
   boostMat.color.setScalar(1.25);
   {
-    const geos = boostPads.map((p) => extrude(p.s0, p.s0 + p.len, () => [[p.lat - p.hw, 0.04], [p.lat + p.hw, 0.04]], { across: [0, 1], alongScale: p.len * ds / 2 }));
+    const geos = boostPads.map((p) => extrude(p.s0, p.s0 + p.len, (i) => [[p.lat - p.hw, 0.04 + bankDy(i, p.lat - p.hw)], [p.lat + p.hw, 0.04 + bankDy(i, p.lat + p.hw)]], { across: [0, 1], alongScale: p.len * ds / 2 }));
     addMesh(mergeGeometries(geos), boostMat, { name: 'boostPads' });
     geos.forEach((g) => g.dispose());
   }
@@ -608,9 +620,9 @@ export function createTrack(scene, renderer) {
     const tops = [], sides = [];
     for (const r of ramps) {
       const hAt = (ii) => r.h * clamp((ii - r.s0) / r.len, 0, 1);
-      tops.push(extrude(r.s0, r.s0 + r.len, (i, ii) => [[-r.hw, hAt(ii) + 0.03], [r.hw, hAt(ii) + 0.03]], { across: [0, 1], alongScale: r.len * ds }));
-      sides.push(extrude(r.s0, r.s0 + r.len, (i, ii) => [[r.hw, hAt(ii) + 0.03], [r.hw, -0.1]], { across: [0, 1] }));
-      sides.push(extrude(r.s0, r.s0 + r.len, (i, ii) => [[-r.hw, -0.1], [-r.hw, hAt(ii) + 0.03]], { across: [0, 1] }));
+      tops.push(extrude(r.s0, r.s0 + r.len, (i, ii) => [[-r.hw, hAt(ii) + 0.03 + bankDy(i, -r.hw)], [r.hw, hAt(ii) + 0.03 + bankDy(i, r.hw)]], { across: [0, 1], alongScale: r.len * ds }));
+      sides.push(extrude(r.s0, r.s0 + r.len, (i, ii) => [[r.hw, hAt(ii) + 0.03 + bankDy(i, r.hw)], [r.hw, -0.1 + bankDy(i, r.hw)]], { across: [0, 1] }));
+      sides.push(extrude(r.s0, r.s0 + r.len, (i, ii) => [[-r.hw, -0.1 + bankDy(i, -r.hw)], [-r.hw, hAt(ii) + 0.03 + bankDy(i, -r.hw)]], { across: [0, 1] }));
       const e = (r.s0 + r.len) % N;
       sides.push(extrude(e, e + 0.001, (i, ii) => ii === e ? [[-r.hw, r.h + 0.03], [r.hw, r.h + 0.03]] : [[-r.hw, -0.1], [r.hw, -0.1]], { across: [0, 1] }));
     }
