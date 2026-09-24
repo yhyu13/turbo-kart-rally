@@ -1,5 +1,7 @@
 // Procedural CanvasTextures for the track (Agent 1 — World). No external assets.
+// Colours come from THEME_CSS in config.js — the UIUC palette lives in exactly one place.
 import * as THREE from 'three';
+import { THEME_CSS as T } from './config.js';
 
 function canvas(w, h) {
   const c = document.createElement('canvas');
@@ -66,8 +68,8 @@ export function makeAsphaltTexture() {
   ctx.fillStyle = '#f4f4f0';
   ctx.fillRect(W * 0.035, 0, W * 0.022, H);
   ctx.fillRect(W * (1 - 0.057), 0, W * 0.022, H);
-  // dashed centre line (yellow)
-  ctx.fillStyle = '#ffd54a';
+  // dashed centre line (gold — the one warm mark on the tarmac)
+  ctx.fillStyle = T.amber;
   for (let y = 0; y < H; y += 256) ctx.fillRect(W * 0.5 - 5, y + 40, 10, 150);
   // faint lane dashes (white)
   ctx.fillStyle = 'rgba(245,245,240,0.55)';
@@ -75,11 +77,11 @@ export function makeAsphaltTexture() {
   return finish(c, { anisotropy: 16 });
 }
 
-// Red/white rumble strip: u across (0..1), v along (one red + one white block per repeat)
+// Orange/white rumble strip: u across (0..1), v along (one orange + one white block per repeat)
 export function makeCurbTexture() {
   const [c, ctx] = canvas(64, 128);
-  ctx.fillStyle = '#e8322f'; ctx.fillRect(0, 0, 64, 64);
-  ctx.fillStyle = '#fbfbf7'; ctx.fillRect(0, 64, 64, 64);
+  ctx.fillStyle = T.orange; ctx.fillRect(0, 0, 64, 64);
+  ctx.fillStyle = T.white; ctx.fillRect(0, 64, 64, 64);
   // bevel shading
   const g = ctx.createLinearGradient(0, 0, 64, 0);
   g.addColorStop(0, 'rgba(0,0,0,0.25)');
@@ -95,22 +97,23 @@ export function makeGrassTexture() {
   const W = 256, H = 256;
   const [c, ctx] = canvas(W, H);
   const rand = rng(23);
-  ctx.fillStyle = '#6fbf3f'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = T.grass; ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fillRect(0, 0, W, H / 2);
-  speckle(ctx, W, H, 5000, ['#5eae34', '#7fcf4b', '#68b83a', '#8ad656', '#57a22f'], rand, 1, 3);
+  speckle(ctx, W, H, 5000, ['#548c3e', '#8cbc66', '#6aa84b', '#7fb35c', '#4d8237'], rand, 1, 3);
   for (let i = 0; i < 40; i++) {
-    ctx.fillStyle = ['#ffe66b', '#ffffff', '#ff8fb1'][(rand() * 3) | 0];
+    ctx.fillStyle = [T.corn, T.white, '#f0d98a'][(rand() * 3) | 0];
     ctx.fillRect(rand() * W, rand() * H, 2, 2);
   }
   return finish(c);
 }
 
+// Campus limestone verge (was tropical sand).
 export function makeSandTexture() {
   const W = 256, H = 256;
   const [c, ctx] = canvas(W, H);
   const rand = rng(31);
-  ctx.fillStyle = '#e9cf92'; ctx.fillRect(0, 0, W, H);
-  speckle(ctx, W, H, 6000, ['#dcc080', '#f3dca6', '#d2b574', '#efd79c'], rand, 1, 2.5);
+  ctx.fillStyle = T.limestone; ctx.fillRect(0, 0, W, H);
+  speckle(ctx, W, H, 6000, ['#d6d1c5', '#f0ece3', '#cbc6b8', '#e5e0d5'], rand, 1, 2.5);
   return finish(c);
 }
 
@@ -118,8 +121,8 @@ export function makeConcreteTexture() {
   const W = 256, H = 256;
   const [c, ctx] = canvas(W, H);
   const rand = rng(41);
-  ctx.fillStyle = '#b9bcc2'; ctx.fillRect(0, 0, W, H);
-  speckle(ctx, W, H, 4000, ['#a8abb2', '#c7cad0', '#9fa3aa'], rand, 1, 2);
+  ctx.fillStyle = '#d6d2c6'; ctx.fillRect(0, 0, W, H);
+  speckle(ctx, W, H, 4000, ['#c6c1b5', '#e0dcd1', '#bdb8ac'], rand, 1, 2);
   ctx.strokeStyle = 'rgba(80,80,90,0.35)'; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(0, 1); ctx.lineTo(W, 1); ctx.stroke();
   return finish(c);
@@ -130,10 +133,10 @@ export function makeBarrierTexture() {
   const W = 1024, H = 128;
   const [c, ctx] = canvas(W, H);
   const panels = [
-    { bg: '#1e6fe8', fg: '#ffffff', text: 'TURBO' },
-    { bg: '#ffd21f', fg: '#e8322f', text: 'KART' },
-    { bg: '#e8322f', fg: '#ffffff', text: 'RALLY' },
-    { bg: '#ffffff', fg: '#1e6fe8', text: '★ GO! ★' },
+    { bg: T.blue, fg: T.orange, text: 'ILLINI' },
+    { bg: T.orange, fg: T.blue, text: 'KART' },
+    { bg: T.industrial, fg: T.white, text: 'CLASSIC' },
+    { bg: T.white, fg: T.industrial, text: '★ GO ILLINI ★' },
   ];
   const pw = W / panels.length;
   panels.forEach((p, i) => {
@@ -149,12 +152,12 @@ export function makeBarrierTexture() {
   return finish(c);
 }
 
-// Bridge parapet: blue & white chevron bands. u along, v up
+// Bridge parapet: Illinois-blue & white chevron bands. u along, v up
 export function makeRailTexture() {
   const W = 256, H = 64;
   const [c, ctx] = canvas(W, H);
-  ctx.fillStyle = '#f5f7fa'; ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = '#2563d9';
+  ctx.fillStyle = T.white; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = T.industrial;
   for (let x = -H; x < W + H; x += 64) {
     ctx.beginPath();
     ctx.moveTo(x, H); ctx.lineTo(x + 32, H); ctx.lineTo(x + 32 + H, 0); ctx.lineTo(x + H, 0);
@@ -169,7 +172,7 @@ export function makeBoostTexture() {
   const W = 128, H = 256;
   const [c, ctx] = canvas(W, H);
   const g = ctx.createLinearGradient(0, 0, W, 0);
-  g.addColorStop(0, '#ff7a00'); g.addColorStop(0.5, '#ffb300'); g.addColorStop(1, '#ff7a00');
+  g.addColorStop(0, T.orange); g.addColorStop(0.5, T.amber); g.addColorStop(1, T.orange);
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
   for (let k = 0; k < 2; k++) {
     const y0 = k * 128;
@@ -179,7 +182,7 @@ export function makeBoostTexture() {
     ctx.lineTo(114, y0 + 124); ctx.lineTo(64, y0 + 58); ctx.lineTo(14, y0 + 124);
     ctx.closePath(); ctx.fill();
   }
-  ctx.strokeStyle = '#7a2a00'; ctx.lineWidth = 8; ctx.strokeRect(4, -10, W - 8, H + 20);
+  ctx.strokeStyle = T.altgeld; ctx.lineWidth = 8; ctx.strokeRect(4, -10, W - 8, H + 20);
   return finish(c);
 }
 
@@ -188,10 +191,10 @@ export function makeRampTexture() {
   const W = 256, H = 256;
   const [c, ctx] = canvas(W, H);
   for (let i = 0; i < 8; i++) {
-    ctx.fillStyle = i % 2 ? '#1e88e5' : '#e3f2fd';
+    ctx.fillStyle = i % 2 ? T.industrial : T.arches;
     ctx.fillRect(i * 32, 0, 32, H);
   }
-  ctx.fillStyle = '#ffd21f';
+  ctx.fillStyle = T.amber;
   ctx.strokeStyle = '#1a1a2e'; ctx.lineWidth = 6;
   ctx.beginPath();
   ctx.moveTo(128, 20); ctx.lineTo(210, 120); ctx.lineTo(160, 120); ctx.lineTo(160, 236);
@@ -216,7 +219,7 @@ export function makeBannerTexture(title) {
   const W = 1024, H = 128;
   const [c, ctx] = canvas(W, H);
   const g = ctx.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, '#ff4d3d'); g.addColorStop(1, '#c81e1e');
+  g.addColorStop(0, T.industrial); g.addColorStop(1, T.blue);
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
   // checkered ends
   const S = 16;
@@ -224,19 +227,19 @@ export function makeBannerTexture(title) {
     ctx.fillStyle = (x + y) % 2 ? '#111' : '#fff';
     ctx.fillRect(x0 + x * S, y * S, S, S);
   }
-  ctx.fillStyle = '#ffd21f';
+  ctx.fillStyle = T.amber;
   ctx.fillRect(96, 0, W - 192, 8); ctx.fillRect(96, H - 8, W - 192, 8);
   ctx.font = 'bold 78px "Lilita One", "Arial Black", Impact, sans-serif';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.lineWidth = 10; ctx.strokeStyle = '#7a0d0d';
+  ctx.lineWidth = 10; ctx.strokeStyle = T.orange;
   ctx.strokeText(title, W / 2, H / 2 + 5);
-  ctx.fillStyle = '#ffffff';
+  ctx.fillStyle = T.white;
   ctx.fillText(title, W / 2, H / 2 + 5);
   return finish(c, { repeat: false });
 }
 
 // Stand canopy stripes
-export function makeStripeTexture(a = '#ffffff', b = '#e8322f', n = 8) {
+export function makeStripeTexture(a = T.white, b = T.orange, n = 8) {
   const [c, ctx] = canvas(256, 16);
   for (let i = 0; i < n; i++) { ctx.fillStyle = i % 2 ? b : a; ctx.fillRect(i * 256 / n, 0, 256 / n, 16); }
   return finish(c);

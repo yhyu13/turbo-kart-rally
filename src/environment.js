@@ -2,6 +2,7 @@
 // vegetation, grandstands + crowd, waving flags, lighthouse, boats.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { THEME } from './config.js';
 
 const smoothstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -53,11 +54,14 @@ export function createEnvironment(scene, renderer, root, L) {
   const WATER = L.waterLevel;
 
   const SUN_DIR = new THREE.Vector3(0.32, 0.78, -0.54).normalize();
+  // Illinois sky: deep blue overhead, pale blue at the horizon. The orange lives on the ground
+  // (kerbs, barriers, masonry) — tinting the sky orange would flatten the track and haze the
+  // landmarks, and the landmarks are the whole point of the theme.
   const COL = {
-    top: new THREE.Color(0x2f7fe0),
-    horizon: new THREE.Color(0xcfe8fb),
-    bottom: new THREE.Color(0x9cc9ea),
-    sun: new THREE.Color(0xfff2cf),
+    top: new THREE.Color(THEME.industrial),
+    horizon: new THREE.Color(THEME.arches),
+    bottom: new THREE.Color(THEME.industrial).lerp(new THREE.Color(THEME.white), 0.28),
+    sun: new THREE.Color(0xffe3be),
   };
 
   // island centre
@@ -108,7 +112,7 @@ export function createEnvironment(scene, renderer, root, L) {
       const pmrem = new THREE.PMREMGenerator(renderer);
       const envScene = new THREE.Scene();
       envScene.add(makeSky());
-      const ground = new THREE.Mesh(new THREE.CircleGeometry(400, 24).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x5d9a44 }));
+      const ground = new THREE.Mesh(new THREE.CircleGeometry(400, 24).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: THEME.grass1 }));
       ground.position.y = -20; envScene.add(ground);
       envRT = pmrem.fromScene(envScene, 0.02, 0.1, 2000);
       ground.geometry.dispose(); ground.material.dispose();
@@ -121,7 +125,7 @@ export function createEnvironment(scene, renderer, root, L) {
   scene.fog = new THREE.Fog(COL.horizon.clone(), 380, 1550);
 
   // ------------------------------------------------------------------ lights
-  const hemi = new THREE.HemisphereLight(0xcfe8ff, 0x7aa05a, 1.25);
+  const hemi = new THREE.HemisphereLight(THEME.arches, THEME.grass1, 1.25);
   scene.add(hemi);
   const sun = new THREE.DirectionalLight(0xfff0d8, 2.8);
   sun.castShadow = true;
@@ -191,9 +195,9 @@ export function createEnvironment(scene, renderer, root, L) {
   tGeo.computeVertexNormals();
   {
     const c = new THREE.Color();
-    const sandWet = new THREE.Color(0xcdb277), sand = new THREE.Color(0xf1dca0);
-    const g1 = new THREE.Color(0x58ad37), g2 = new THREE.Color(0x8fd352), g3 = new THREE.Color(0x3f8a2e);
-    const rock = new THREE.Color(0x9c9588), under = new THREE.Color(0x8fae8f);
+    const sandWet = new THREE.Color(THEME.stone), sand = new THREE.Color(THEME.limestone);
+    const g1 = new THREE.Color(THEME.grass1), g2 = new THREE.Color(THEME.grass2), g3 = new THREE.Color(THEME.grass3);
+    const rock = new THREE.Color(0xb3aa98), under = new THREE.Color(0x7f9a7c);
     const nrm = tGeo.attributes.normal;
     for (let k = 0; k < tPos.count; k++) {
       const x = tPos.getX(k), y = tPos.getY(k), z = tPos.getZ(k);
@@ -248,9 +252,9 @@ export function createEnvironment(scene, renderer, root, L) {
     uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, {
       uTime: { value: 0 },
       uSunDir: { value: SUN_DIR.clone() },
-      uDeep: { value: new THREE.Color(0x0f6fb3) },
-      uShallow: { value: new THREE.Color(0x3fd6d0) },
-      uSky: { value: new THREE.Color(0xc4e6ff) },
+      uDeep: { value: new THREE.Color(0x0e2c57) },
+      uShallow: { value: new THREE.Color(0x3e7fbd) },
+      uSky: { value: new THREE.Color(THEME.arches) },
       uFoam: { value: new THREE.Color(0xffffff) },
       uDepth: { value: null },
       uBounds: { value: new THREE.Vector3(cx - T_SIZE / 2, cz - T_SIZE / 2, T_SIZE) },
@@ -327,7 +331,7 @@ export function createEnvironment(scene, renderer, root, L) {
     const rnd = mulberry(99);
     const geos = [];
     const haze = COL.horizon.clone();
-    const grass = new THREE.Color(0x4f8f45), rockC = new THREE.Color(0x8b8f9c), snow = new THREE.Color(0xf6f9ff);
+    const grass = new THREE.Color(THEME.grass1), rockC = new THREE.Color(0x9fa39a), snow = new THREE.Color(THEME.white);
     const count = 22;
     for (let m = 0; m < count; m++) {
       const ang = (m / count) * Math.PI * 2 + rnd() * 0.2;
@@ -440,7 +444,7 @@ export function createEnvironment(scene, renderer, root, L) {
     ];
     const standGeos = [];
     const crowd = [];
-    const seatCols = [0x1e6fe8, 0xf7f7f7, 0xe8322f, 0xffd21f];
+    const seatCols = [THEME.blue, THEME.orange, THEME.white, THEME.industrial];
     const SEG_LEN = 10;
     for (const def of defs) {
       const i0 = ((nSteps(def.from) % L.N) + L.N) % L.N, i1 = ((nSteps(def.to) % L.N) + L.N) % L.N;
@@ -462,7 +466,7 @@ export function createEnvironment(scene, renderer, root, L) {
           return g;
         };
         // front wall
-        standGeos.push(place(paint(stripUV(new THREE.BoxGeometry(SEG_LEN + 0.05, 4, 0.5)), 0xdad7cf), 0, -1, 0));
+        standGeos.push(place(paint(stripUV(new THREE.BoxGeometry(SEG_LEN + 0.05, 4, 0.5)), THEME.limestone), 0, -1, 0));
         for (let t = 0; t < def.tiers; t++) {
           const top = 1 + t * 0.85;
           standGeos.push(place(paint(stripUV(new THREE.BoxGeometry(SEG_LEN + 0.05, top + 3, 1.6)), seatCols[(t + (k / segSamples | 0)) % 4]), 0, (top - 3) / 2, 0.5 + t * 1.6 + 0.8));
@@ -479,9 +483,9 @@ export function createEnvironment(scene, renderer, root, L) {
         }
         const backZ = 0.5 + def.tiers * 1.6 + 0.3;
         const roofY = 1 + def.tiers * 0.85 + 4.2;
-        standGeos.push(place(paint(stripUV(new THREE.BoxGeometry(SEG_LEN + 0.05, roofY + 3, 0.6)), 0xcfcac0), 0, (roofY - 3) / 2, backZ));
+        standGeos.push(place(paint(stripUV(new THREE.BoxGeometry(SEG_LEN + 0.05, roofY + 3, 0.6)), THEME.stone), 0, (roofY - 3) / 2, backZ));
         // roof (sloped canopy) + pillars
-        const roof = paint(stripUV(new THREE.BoxGeometry(SEG_LEN + 0.1, 0.4, def.tiers * 1.6 + 3)), (k / segSamples | 0) % 2 ? 0xe8322f : 0xffffff);
+        const roof = paint(stripUV(new THREE.BoxGeometry(SEG_LEN + 0.1, 0.4, def.tiers * 1.6 + 3)), (k / segSamples | 0) % 2 ? THEME.orange : THEME.white);
         roof.rotateX(-0.08);
         standGeos.push(place(roof, 0, roofY, backZ - (def.tiers * 1.6 + 3) / 2 + 0.3));
         standGeos.push(place(paint(stripUV(new THREE.CylinderGeometry(0.18, 0.18, roofY - 1, 6)), 0x9aa0a8), -SEG_LEN / 2 + 0.3, (roofY - 1) / 2 + 1, 0.5));
@@ -506,7 +510,7 @@ export function createEnvironment(scene, renderer, root, L) {
     const headMat = keep(withTime(new THREE.MeshLambertMaterial(), bounce));
     const bodies = new THREE.InstancedMesh(bodyGeo, bodyMat, crowd.length);
     const heads = new THREE.InstancedMesh(headGeo, headMat, crowd.length);
-    const shirt = [0xe53935, 0x43a047, 0x1e88e5, 0xfdd835, 0x8e24aa, 0xff7043, 0x00acc1, 0xf06292, 0xffffff];
+    const shirt = [THEME.orange, THEME.blue, THEME.white, THEME.industrial, THEME.altgeld, THEME.amber, THEME.limestone, THEME.arches, THEME.white];
     const skin = [0xffd2a6, 0xf1c08b, 0xc68a5a, 0x8d5a3b, 0xffe0bd];
     const m4 = new THREE.Matrix4(), c = new THREE.Color();
     crowd.forEach((cr, k) => {
@@ -553,7 +557,7 @@ export function createEnvironment(scene, renderer, root, L) {
       #endif`));
     const poles = new THREE.InstancedMesh(poleGeo, poleMat, flagSpots.length);
     const flags = new THREE.InstancedMesh(flagGeo, flagMat, flagSpots.length);
-    const fcols = [0xe8322f, 0xffd21f, 0x1e6fe8, 0x43a047, 0xff7043, 0xf06292, 0xffffff];
+    const fcols = [THEME.orange, THEME.blue, THEME.white, THEME.industrial, THEME.amber, THEME.altgeld, THEME.arches];
     const m4 = new THREE.Matrix4(), c = new THREE.Color();
     flagSpots.forEach((f, k) => {
       const sc = f.short ? 0.6 : 1;

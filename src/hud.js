@@ -9,7 +9,7 @@ export const ordinal = (n) => {
   const v = n % 100;
   return s[(v - 20) % 10] || s[v] || s[0];
 };
-export const PLACE_COLORS = ['#ffd23f', '#e3ecf5', '#f0a162', '#8fdcff', '#8fdcff', '#8fdcff', '#ff8a8a', '#ff6b6b'];
+export const PLACE_COLORS = ['#fcb316', '#dfe6ef', '#c84113', '#4d8fd6', '#4d8fd6', '#4d8fd6', '#ff7a1f', '#ff5f05'];
 
 function el(tag, cls, parent, html) {
   const e = document.createElement(tag);
@@ -106,20 +106,24 @@ function drawItem(g, type) {
     case 'triple_mushroom':
       mushroom(g, 64, 42, 0.6); mushroom(g, 34, 86, 0.6); mushroom(g, 94, 86, 0.6); break;
     case 'banana': {
-      g.save(); g.translate(64, 64);
+      // Corn on the cob — the Morrow Plots joke: the dropped hazard is an ear of Illinois corn.
+      g.save(); g.translate(64, 66);
       g.strokeStyle = '#3a2a05'; g.lineWidth = 5;
-      const grd = g.createLinearGradient(-40, -40, 40, 40);
-      grd.addColorStop(0, '#fff176'); grd.addColorStop(1, '#f9a825');
+      const grd = g.createLinearGradient(-30, -40, 30, 40);
+      grd.addColorStop(0, '#ffe9a8'); grd.addColorStop(1, '#e0a02a');
       g.fillStyle = grd;
-      g.beginPath();
-      g.moveTo(-38, -34);
-      g.bezierCurveTo(-52, 20, 0, 52, 44, 30);
-      g.bezierCurveTo(10, 30, -22, 10, -24, -36);
-      g.closePath(); g.fill(); g.stroke();
-      g.fillStyle = '#5d4037';
-      g.beginPath(); g.roundRect(-40, -48, 14, 16, 4); g.fill(); g.stroke();
-      g.strokeStyle = 'rgba(255,255,255,0.6)'; g.lineWidth = 4;
-      g.beginPath(); g.moveTo(-36, -14); g.quadraticCurveTo(-30, 18, 0, 32); g.stroke();
+      g.beginPath(); g.ellipse(0, 0, 20, 44, 0, 0, Math.PI * 2); g.fill(); g.stroke();
+      // kernels
+      g.strokeStyle = 'rgba(140,100,20,0.5)'; g.lineWidth = 2;
+      for (let r = -3; r <= 3; r++) for (let c = -1; c <= 1; c++) {
+        g.beginPath(); g.arc(c * 9 + (r % 2 ? 4.5 : 0), r * 11, 4.2, 0, Math.PI * 2); g.stroke();
+      }
+      // husk leaves
+      g.fillStyle = '#4e8f3a'; g.strokeStyle = '#2e5d2a'; g.lineWidth = 4;
+      for (const s of [-1, 1]) {
+        g.beginPath(); g.moveTo(s * 18, 14); g.bezierCurveTo(s * 44, 24, s * 40, 52, s * 14, 44);
+        g.bezierCurveTo(s * 26, 36, s * 24, 22, s * 18, 14); g.closePath(); g.fill(); g.stroke();
+      }
       g.restore(); break;
     }
     case 'green_shell': shell(g, '#66e06a', '#1b8a2a'); break;
@@ -161,8 +165,18 @@ function drawItem(g, type) {
       break;
     }
     default: {
-      g.fillStyle = '#fff'; g.font = 'bold 80px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-      g.fillText('?', 64, 68);
+      // Item box: an orange/blue crate carrying the campus "I".
+      g.save(); g.translate(64, 66);
+      g.strokeStyle = '#08131f'; g.lineWidth = 6; g.lineJoin = 'round';
+      g.fillStyle = '#13294b';
+      g.beginPath(); g.roundRect(-40, -40, 80, 80, 14); g.fill(); g.stroke();
+      g.fillStyle = '#ff5f05';
+      g.beginPath(); g.roundRect(-32, -32, 64, 64, 9); g.fill();
+      g.fillStyle = '#f4f4f4';
+      g.beginPath(); g.roundRect(-6, -22, 12, 44, 3); g.fill();
+      g.beginPath(); g.roundRect(-16, -22, 32, 10, 3); g.fill();
+      g.beginPath(); g.roundRect(-16, 12, 32, 10, 3); g.fill();
+      g.restore();
     }
   }
 }
@@ -344,8 +358,8 @@ export class HUD {
     g.lineJoin = 'round'; g.lineCap = 'round';
     const rw = Math.max(10, (track.roadWidth || 24) * scale);
     path(); g.strokeStyle = 'rgba(0,0,0,0.55)'; g.lineWidth = rw + 16; g.stroke();
-    path(); g.strokeStyle = '#ffffff'; g.lineWidth = rw + 6; g.stroke();
-    path(); g.strokeStyle = '#5b6b86'; g.lineWidth = rw; g.stroke();
+    path(); g.strokeStyle = '#f4f4f4'; g.lineWidth = rw + 6; g.stroke();
+    path(); g.strokeStyle = '#13294b'; g.lineWidth = rw; g.stroke();
     // start line
     const p0 = mm.points[0], p1 = mm.points[1];
     const [x0, y0] = this._mp(p0.x, p0.z), [x1, y1] = this._mp(p1.x, p1.z);

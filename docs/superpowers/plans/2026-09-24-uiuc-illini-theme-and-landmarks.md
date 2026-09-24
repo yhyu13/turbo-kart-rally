@@ -1,0 +1,231 @@
+# Turbo Kart Rally → Illini 主题改造方案（换皮 + 特色建筑与道具）
+
+**日期：** 2026-09-24
+**状态：** 待评审（未动代码）
+**目标仓库：** `D:\GitRepo-AI\turbo-kart-rally`（clone 自 `bridge-mind/turbo-kart-rally`，`c52aca3`，工作区干净、无本地改动）
+**本轮范围（用户已确认）：** ① 调色板换成 UIUC 橙蓝；② 赛道旁加特色建筑与道具；③ **保留现有赛道布局**（`src/track.js` 的 24 个控制点不动，玩法、物理、赛制全不动）。
+
+---
+
+## 1. 这个仓库是什么（改造前的约束事实）
+
+- Three.js r170，纯原生 ES module，**没有构建步骤、没有 package.json、没有测试框架**。`index.html` 用 importmap 从 jsDelivr 拉 three，所以验证时必须联网。
+- `ARCHITECTURE.md` 是硬契约：1 unit = 1 m、Y 轴向上、朝向 = `rotation.y`、前向 = `(sin h, 0, cos h)`、模型朝 +Z；**唯一依赖是 three**；帧循环内不许抛异常；`dispose()` 必须回收（重开局会重建整个世界）。
+- 模块归属（改文件时遵守，别顺手越界）：
+  | 文件 | 归属 | 本轮是否动 |
+  |---|---|---|
+  | `track.js` / `environment.js` / `track-textures.js` | Agent 1 · World | **动** |
+  | `models.js` | Agent 4 · Art | **动**（仅道具模型） |
+  | `styles.css` / `hud.js` / `config.js` / `main.js` | Agent 5 · Game & UI | **动** |
+  | `kart.js` / `ai.js` / `input.js` / `race.js` / `camera.js` / `audio.js` / `events.js` | Agent 2 / 5 | **不动** |
+  | `effects.js` | Agent 3 · FX | **只读**（原因见 §8.6） |
+- 验证手段只有两件：`dev/track-test.html`（几何自检，打印 build ms / 中线偏差 / racing line 出界数）和 `dev/drive-test.html`（开车）。加上 `window.__game`（`main.js:562`）暴露的调试口。
+
+---
+
+## 2. 已定决策
+
+| # | 决策 | 选择 | 理由 |
+|---|---|---|---|
+| D1 | 改造力度 | 换皮 + 加地标，**赛道几何冻结** | 用户选定；CP 表一改，AI racing line、跳台、加速板、赛程长度全部要重标定，风险远超主题需求 |
+| D2 | 官方色来源 | `brand.illinois.edu/web/web-color` 的网页色板（2026-09-24 实测抓取） | 唯一权威；不靠记忆 |
+| D3 | 新增模块 | 地标独立成 `src/landmarks.js`，不在 `environment.js` 里继续堆 | `environment.js` 已 797 行，加 8 个建筑会破千行，且地标是"纯装饰、可整体删除"的东西，接缝要干净 |
+| D4 | 程序化产物 | 全部代码生成几何 + CanvasTexture，**一个资产文件都不加** | 仓库自带规矩，也是它唯一的卖点 |
+| D5 | 阴影/雾 | 近景地标 `castShadow`，>75 m 的不投阴影；远景地平线 `fog:false` | 阴影相机只有玩家周围 75×75（`environment.js:131`），雾在 380–1550（`environment.js:122`） |
+| D6 | 玩法信息色不动 | 漂移火花三级色、龟壳三色、名次色语义 **一律不改** | 这些颜色是玩法信息，不是装饰（见 §8.6） |
+| D7 | 官方标记 | 只画自绘的几何"I"，**不使用官方 Block I / wordmark 图形** | 商标；且本项目本来就无资产文件，只能用代码画 |
+| D8 | 文风 | 玩家可见文案英文（UIUC 观众），代码注释/文档中文 | 沿用作者其它项目的分工 |
+
+---
+
+## 3. 配色规范（已核实）
+
+抓取自 `https://brand.illinois.edu/web/web-color`（2026-09-24），token 名为站点原文：
+
+| token | hex | 本轮用途 |
+|---|---|---|
+| `il-blue` | `#13294B` | 主蓝：UI 面板、深水、建筑背光面、看台主色 |
+| `il-industrial` | `#1D58A7` | 次蓝：天空上端、UI 渐变上端、护栏蓝 |
+| `il-arches-90` | `#C4E9F5` | 浅蓝：天光、水面反射、浅色高光 |
+| `il-orange` | `#FF5F05` | 主橙：强调色、加速板、路缘石、UI 主按钮 |
+| `il-orange-gradient` | `#FCB316` | 金橙：Boost 高光、标题屏渐变亮端 |
+| `il-altgeld` | `#C84113` | 砖橙：建筑砖面、橙色暗部（名取自 Altgeld Hall） |
+| `il-storm-95` | `#F4F4F4` | 白：护栏白条、观众白衫、棋盘格 |
+| `il-storm-10` | `#252525` | 近黑：描边、棋盘格深色 |
+
+> 备注：作者另外两个 UIUC 项目用的是 `#E84A27`（旧版 athletic "Illini Orange"）。本轮**以品牌页的 `#FF5F05` 为准**，`#E84A27` 作为橙色暗部备选；如果希望三个项目视觉一致，把 `#FF5F05` 全局替换成 `#E84A27` 即可，替换点是单一常量表。
+
+### 3.1 现状 → 目标（逐处替换表）
+
+| 位置 | 现状 | 目标 | 说明 |
+|---|---|---|---|
+| 天顶 `environment.js:57` | `0x2f7fe0` | `#1D58A7` | 伊利诺伊蓝天，仍是晴空 |
+| 地平线 `:58` | `0xcfe8fb` | `#C4E9F5` | 保留冷调；橙色**不给天空**（理由见 §3.2） |
+| 天底 `:59` | `0x9cc9ea` | `#1D58A7` 提亮 40% | 水面反射的天光 |
+| 太阳 `:60` | `0xfff2cf` | `#FFE3BE` | 稍暖，让橙色只从光里透出 |
+| 半球光 `:124` | `0xcfe8ff / 0x7aa05a` | `#C4E9F5 / #5E8F4A` | 草地反光降饱和 |
+| PMREM 地面 `:111` | `0x5d9a44` | `#5E8F4A` | 同上 |
+| 水 `uDeep :251` | `0x0f6fb3` | `#0E2C57` | Illinois 蓝的深水 |
+| 水 `uShallow :252` | `0x3fd6d0` | `#3E7FBD` | 去掉热带青 |
+| 水 `uSky :253` | `0xc4e6ff` | `#C4E9F5` | |
+| 地形草三色 `:195` | `0x58ad37 / 0x8fd352 / 0x3f8a2e` | `#5E9A46 / #7FB35C / #3F7A34` | 校园草坪绿，但降饱和、降荧光 |
+| 地形沙/湿沙 `:194` | `0xf1dca0 / 0xcdb277` | `#E5E0D5 / #C6BBA6` | 热带沙滩 → **印第安纳石灰岩岸**（校园建筑与桥栏就是它） |
+| 地形岩 `:196` | `0x9c9588` | `#B3AA98` | 石灰岩 |
+| 山体 `:330` | 草/岩/雪 + haze | 见 §4.10 | 结构替换，不只是换色 |
+| 看台座席 `:443` | `0x1e6fe8/0xf7f7f7/0xe8322f/0xffd21f` | `#13294B/#FF5F05/#F4F4F4/#1D58A7` | |
+| 看台墙/柱 `:463,465,482` | 米白/灰 | `#E5E0D5` 石灰岩 / `#C6BBA6` 阴面 | |
+| 观众衣 `:503` | 9 色随机 | 橙蓝白为主 + 保留肤色表 | `shirt` 数组换成 UIUC 组 |
+| 旗帜 `:529` | 7 色 | `#13294B/#FF5F05/#F4F4F4/#1D58A7` | |
+| 路缘石 `track-textures.js:79` | 红白 | `#FF5F05` / `#F4F4F4` | |
+| 草地贴图 `:94` | `#6fbf3f` 系 | `#5E9A46` 系 | 与地形同调 |
+| 沙贴图 `:108` | `#e9cf92` | `#E5E0D5` 石灰岩碎屑 | |
+| 混凝土 `:117` | `#b9bcc2` | `#D6D2C6` 暖灰石 | |
+| 护栏面板 `:129` | TURBO/KART/RALLY/★GO!★ 蓝黄 | `ILLINI`/`KART`/`CLASSIC`/`★ GO ILLINI ★` 橙蓝字 | |
+| 桥栏 `:153` | 蓝白 chevron `#2563d9` | `#1D58A7` + 白 | |
+| 加速板 `:168` | `#ff7a00→#ffb300` | `#FF5F05 → #FCB316` | |
+| 跳台 `:187` | `#1e88e5/#e3f2fd` | `#1D58A7/#C4E9F5` | |
+| 龙门横幅底 `makeBannerTexture:215` | 红渐变 `#ff4d3d→#c81e1e` | `#1D58A7 → #13294B`，描边 `#FF5F05` | |
+| 龙门立柱条纹 `track.js:641` | 白/红 | 白/橙 | |
+| 龙门横梁 `:654` | `0xc81e1e` | `#13294B` | |
+| 起点格线 `:631` | 白 | 白（不改） | 语义最强，别动 |
+| 椅子/轮胎墙 `:534` | 红白蓝白 | `#FF5F05`/`#F4F4F4` + `#1D58A7`/`#F4F4F4` | |
+| 桥墩 `:558` | `0xd9d4c7` | 保持（已经是石灰岩调） | |
+| 跳台侧 `:594` | `0xffc21a` | `#FCB316` | |
+| UI 主 token `styles.css:8-12` | gold/orange/red/blue/cyan | `#FCB316/#FF5F05/#C84113/#1D58A7/#C4E9F5` | |
+| 标题屏底色 `styles.css:30` | 橙/粉/紫热带落日 | `radial-gradient(ellipse at 50% 120%, #FCB316 0%, #FF5F05 28%, #1D58A7 62%, #13294B 100%)` | **这是"橙蓝"最出彩的一处**，一眼定调 |
+| 按钮 `:52` / 徽章 `:109` / 图标 `:116` / 条纹 `:123` | 黄橙、青蓝 | 依次换到橙系/蓝系 | |
+| 名次色 `hud.js:12` | 黄/银/橙/青… | `#FCB316`（1st）/`#D8DDE4`（2nd）/`#C84113`（3rd）/`#1D58A7` 系 | 只换色，不改排序语义 |
+| 迷你地图 `hud.js:347-348` | 路面白 + `#5b6b86` | `#F4F4F4` + `#13294B` | |
+| 无世界底色 `main.js:46` | `0x2a6fdb` | `#1D58A7` | |
+
+### 3.2 为什么天空不做成"橙蓝对撞"
+橙色全部给**地面元素**（路缘、护栏、看台、建筑、加速板、UI），天空保持可信的伊利诺伊晴空（工业蓝 → 浅蓝）。把地平线染橙看着像日落，会同时压掉赛道对比度、弄脏远处地标剪影——而这一轮的全部价值就在"远处能认出哪些楼"。橙蓝的成立靠**同一画面里的橙物件 + 蓝物件**，不靠一个橙天空。
+
+---
+
+## 4. 地标建筑清单（10 + 2）
+
+每个地标都以 `(沿赛道 t, 侧别, 离墙距离)` 定位，**不写死世界坐标** —— 赛道 CP 表冻结，但用 t 定位才能保证日后微调赛道时地标跟着走。所有造型都是"UIUC 味"的低多边形近似（`D15` 的同类原则：不追求建筑学准确，追求 200 m 外能认出）。
+
+| # | 地标 | 锚点（t / 侧） | 低多边形造型要点 | 现实依据 | 量级 |
+|---|---|---|---|---|---|
+| 1 | **Memorial Stadium** 纪念体育场 | `t≈0.94–0.04`，右（外侧） | 双列柱廊（East Main 的柱廊是招牌）+ 橙蓝座席 + 顶部 `ILLINOIS` 横幅 + 北端记分牌 | 1923，马蹄形碗 + 柱廊 | 大 |
+| 2 | **State Farm Center**（原 Assembly Hall） | `t≈0.96`，左（外侧） | 白色混凝土穹顶 + 4 道环形通道带 + 大跨度顶 | 1963 混凝土穹顶；与 #1 现实相邻 | 中 |
+| 3 | **Illini Union** | `t≈0.10–0.14`，外侧 | 主楼 + 塔楼 + 时钟 + 门前旗杆 | Green St 上的校园天际线 | 中 |
+| 4 | **Alma Mater 雕像** | `t≈0.17`，缓弯三角广场 | 石基 + 两盏角灯 + 坐姿衣袍人物剪影（+ 两张小座椅） | Lorado Taft 1929，Wright & Green | 小 |
+| 5 | **Altgeld Hall + chimes** | `t≈0.22–0.26`，外侧 | 城堡式塔楼 + 雉堞 + 拱窗 + 钟 | 1897，"校园城堡"，带 chime | 中 |
+| 6 | **McFarland Carillon** 钟塔 | 岛外沿（**直接替换现有 lighthouse**，`environment.js:716`） | 细高石灰岩塔 + 多组铜钟 + 尖顶 | UIUC 唯一的独立 carillon 塔 | 小 |
+| 7 | **Foellinger Auditorium** | `t≈0.35–0.42`，S 弯外侧 | 半圆穹顶 + 柱廊门廊 + 拱形入口 | 1907，Quad 南端；**全赛道最强远观锚点** | 中 |
+| 8 | **Siebel Center for CS** | `t≈0.46–0.52`，桥段 | 现代玻璃盒子 + 橙色斜切内衬 + 屋顶机房 | 2004，201 N Goodwin | 中 |
+| 9 | **Morrow Plots** 玉米试验田 | `t≈0.62–0.70`，低洼草地 | 整齐行播玉米垄 + 白栅栏 + 木牌 | 1876，美国最老试验田，在 Quad 上；玉米道具的出处 | 小 |
+| 10 | **伊利诺伊平原远景** | 替换 22 座锥形山（`environment.js:325–370`） | 平坦地平线带 + 6–8 组谷物筒仓 + 5 座三叶风机（慢转）+ 一座写 `ILLINOIS` 的水塔 | 伊州风电场与筒仓是最强的地域特征；美国中西部水塔惯例写镇名 | 大（远景，`fog:false`） |
+| 11 | **Marching Illini 看台段** | `t≈0.97`，左看台（复用现有 side=-1 看台区） | 铜管乐器剪影 + 大面 Block-I 风格橙旗 | Marching Illini 是主场文化符号 | 小 |
+| 12 | **Block I 入口标牌**（可选） | 起点直道末端 + 最后一弯入口 | 橙色方牌 + 几何白 I + 下方 `ILLINI KART CLASSIC` | "Welcome to Champaign-Urbana" 路牌样式 | 小 |
+
+**放置机制**（复用现成的，不新造）：`environment.js:404` 的 `spot(x, z, minClear)` 已经会拒绝压到赛道/看台的落点；`corridorAt()` / `heightAt()` 给出地面高度；沿赛道用 `L.px[i] / L.pz[i] / L.rx[i] / L.rz[i] / L.head[i] / L.wallR[i] / L.wallL[i]` 取局部坐标系（局部 +Z = 朝外，局部 X = 沿赛道）。地标一律 `minClear ≥ 12`（大于玩家相机横向摆幅），确保**撞不到、也挡不住视线**。
+
+---
+
+## 5. 道具清单（赛道旁小物件）
+
+| 道具 | 现状 | 做法 | 成本 |
+|---|---|---|---|
+| 橙白路缘石 | 已有（红白） | 只换色 | 0 |
+| 橙色轮胎墙 | 已有（红白蓝白） | 只换色 | 0 |
+| 石灰岩矮墙 / 石岸 | 沙滩带 | 换色 + 岸边加矮墙几何 | 小 |
+| 橙蓝三角旗串 | 已有单旗 | 换色 + 每 4 根加一段串旗 | 小 |
+| 玉米杆丛 + 干草卷 + 南瓜 | 无 | 与 #9 Morrow Plots 同一套几何，随机撒在赛道外 15–40 m | 小 |
+| 交通锥 + Block I 立牌 | 无 | 弯心外侧成组摆 | 小 |
+| 蓝底校园指示牌（"Green St →"） | 无 | 起点直道与维修区各 2 块 | 小 |
+| 长椅 + 自行车架（Quad 特征） | 无 | 看台外侧点缀 | 小 |
+| 赛艇（crew shell）替代帆船 | 帆船 6 条（`environment.js:743`） | 细长八人艇 + 4 支桨；或保留帆船但帆上画几何 I | 小 |
+
+---
+
+## 6. 道具（item）换皮 —— 只做视觉，不碰 id
+
+| item | 视觉处理 | 不做什么 |
+|---|---|---|
+| `item_box` | 彩虹框 + "?" → **橙蓝框 + 几何 I**（`models.js:1170` 的 `itemBoxFaceTex`） | 不动全息材质与 iridescence |
+| `banana` | 香蕉 → **玉米棒**（`models.js:1280` `buildBananaParts` + `items.js:95` 的 fallback 几何） | **不动 id**：`'banana'` 出现在 `config.js:44`、`items.js:57,61,251,357`、`ai.js` 危险物判定、`hud.js:387` 图标分支 —— 改 id 是纯风险 |
+| `star` / `lightning` | 保持（彩虹 / 黄） | 颜色即玩法语义 |
+| `green/red/blue_shell` | **完全不动** | 靠颜色区分直射/追踪/追第一名 |
+| HUD 道具图标（`hud.js:47–165` 的 canvas 绘制） | 与上面同步（香蕉→玉米、item box→橙蓝 I） | 名次色只换色不改序 |
+
+---
+
+## 7. 分阶段任务
+
+### P0 · 基线（约 0.5 h，必做）
+1. `git checkout -b illini-theme`（当前是 `c52aca3` 干净工作区）。
+2. 起服务：`py -3 -m http.server 8080`（**本机 `python` 是 2.7，不能用**）。
+3. 采集基线并记录下来：
+   - `dev/track-test.html` 日志：`build ms`、`centerline mismatches`（应 0）、`racing line offroad`（应 0）、8 个发车位的 `onRoad`。
+   - `window.__game.renderer.info.render`（triangles / calls）、`info.memory`（geometries / textures）。
+   - 六屏截图：title / select / race / items / results / pause。
+   - 帧率基线：rAF 里取 120 帧均值（放 `tmp/` 里的临时页或控制台跑）。
+4. 在 `tmp/` 放一份"验收清单"文本，后面每个阶段照抄着过。
+
+### P1 · 换色（约 0.5 天，只改颜色，不动几何）
+按 §3.1 全表替换。收口标准：
+- `dev/track-test.html` 的 `centerline mismatches` / `racing line offroad` **与基线完全一致**。
+- 六屏截图能看出"橙蓝"，且赛道可读性没有下降（路缘、跳台、加速板在 300 km/h 下仍分得清）。
+- `window.__game.errors()` 为空数组。
+
+### P2 · 地标（约 1–1.5 天，新建 `src/landmarks.js`）
+顺序**先远后近**（先立骨架、再填细节；每一步都能截图）：
+1. #10 平原/筒仓/风机/水塔（先把"热带"换成"伊州"，收效最大）
+2. #1 + #2 体育场群（起跑直道，改现有看台而非新增 —— 起跑直道两侧被 `standZones` 占着，`spot()` 会拒绝新落点，见 `environment.js:404–422`）
+3. #3 + #4（Union + Alma Mater）
+4. #5 Altgeld、#6 McFarland（替换 lighthouse）
+5. #7 Foellinger（远观锚点，单独一次提交单独截图）
+6. #8 Siebel、#9 Morrow Plots
+7. #11 乐队看台、#12 入口标牌
+
+每个地标一次提交，每次提交都重跑 P1 的收口标准。
+
+### P3 · 道具与道具化（约 0.5 天）
+§5 赛道旁物件 + §6 道具换皮 + 龙门横幅文字（`track.js:653` 的 `'TURBO KART RALLY'` → 新名字） + `README.md` / `ARCHITECTURE.md` 更新（模块表加 `landmarks.js`，删掉 "Palm Cove" 措辞）。
+
+### P4 · 收口（约 2 h）
+性能与泄漏复测（§9 验收清单）、重拍 README 截图、commit 归整成"换色 / 地标 / 道具 / 文档"四组。
+
+---
+
+## 8. 验收清单（每次提交都过）
+
+1. **几何不变**：`dev/track-test.html` → `centerline mismatches 0`、`racing line offroad 0`、8 槽位 `onRoad true`。
+2. **玩法不变**：`window.__game.debug.autopilot = true`（`main.js:477`）让 AI 代跑，跑完 3 圈不卡墙、不飞出赛道、不看错方向。
+3. **装饰不干扰**：地标不侵入 `wallR/wallL` 内侧；`resolveWall()` 在整条中线上仍返回 `null`（track-test 已在测）。
+4. **无运行时错误**：`window.__game.errors()` 为 `[]`。
+5. **性能**：地标新增 draw call **≤ 12**、三角形 **≤ +40k**；120 帧均值帧率不低于基线 −5%。
+6. **不破坏玩法信息色**（硬约束）：`effects.js` 的漂移火花三级色（蓝→橙→紫）、`models.js`/`items.js` 的三色龟壳、名次色阶 —— 一个都不改。
+7. **无泄漏**：连续 restart 3 次，`renderer.info.memory.geometries/textures` 不单调增长（`environment.js:784` 的 `dispose()` 已经会 traverse 回收 InstancedMesh，新模块必须把几何/材质塞进它的 `disposables`）。
+8. **断网自检**：不引入任何新依赖；只允许 `three` 与 `three/addons/...`。
+
+---
+
+## 9. 风险与对策
+
+| # | 风险 | 对策 |
+|---|---|---|
+| 1 | 阴影相机只覆盖玩家周围 75×75（`environment.js:131`），远景地标无阴影会"飘" | 近景 `castShadow=true`；远景不加阴影，改用底部一圈压暗几何当接地感 |
+| 2 | 雾 380–1550（`environment.js:122`），>1550 m 的远景被雾吃掉 | 平原/筒仓/水塔照抄山体的 `fog:false`（`environment.js:369`） |
+| 3 | 合并几何导致整片被视锥剔除或整片渲染 | 每个地标各自一个 Mesh，不做大合并（顺带把 draw call 控制在 12 以内） |
+| 4 | 三角形预算：现有 700 圆树 + 420 松 + 2600 花 + 3200 草 + 22 山 | 地标用 8–14 边柱体 + 合并同材质的部件，单栋 ≤ 4k tris |
+| 5 | 起跑直道两侧已被看台占用 | #1/#2 走"改造现有看台"，不新增落点 |
+| 6 | 改到漂移火花/龟壳颜色 = 破坏玩法可读性 | D6 硬约束，写进验收清单第 6 条 |
+| 7 | 官方 wordmark / Block I 是注册商标 | D7：只画几何 I；私人聚会可用，若要公开分发必须换成自创标记，README 加一句说明 |
+| 8 | 仓库无构建无测试，CI 不可用 | 不引入测试框架，用 §8 清单 + dev harness 人工验收 |
+| 9 | three 走 CDN，断网即白屏 | 验证时联网；顺手确认 `index.html` 的 importmap 版本（`three@0.170.0`）没被改 |
+| 10 | 相机贴墙时可能穿进建筑（虽然建筑在墙外） | 建筑离墙 ≥ 12 m；`dev/drive-test.html` 手动贴墙跑一遍确认 |
+
+---
+
+## 10. 需要你拍板的 5 件事
+
+1. **名字**：游戏名默认 `ILLINI KART CLASSIC`（`config.js:3` 的 `GAME_TITLE`），赛道名默认 `Illini Campus Circuit`（`track.js:9` 的 `TRACK_NAME`）—— 或者你想保留 Turbo Kart Rally 只换色？
+2. **角色**：`Toadly` / `Koopz` 有马里奥味，要不要改名？8 个角色的配色要不要往橙蓝重排（我的建议：**只微调橙/蓝两个位，保留其余色相的多样性**，否则迷你地图 8 个点会糊成一片）？
+3. **地标真实方位**：赛道布局冻结，所以地标只能"局部符合真实相对位置"（比如 Memorial Stadium + State Farm Center 相邻、Alma Mater 紧挨 Altgeld 与 Union）。要不要为了真实再做取舍（比如砍掉 Siebel）？
+4. **中秋元素**：你另外两个项目都在做中秋，这个 kart 项目要不要沾（我的建议：**不沾**，避免串味）？
+5. **交付形态**：只在本地跑通了算完，还是要推到你自己 fork（`yhyu13/turbo-kart-rally`）并开 GitHub Pages？（如果需要 Pages，那"官方标记"的免责声明就要写得更清楚）

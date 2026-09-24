@@ -5,8 +5,9 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { bus } from './events.js';
 import * as TX from './track-textures.js';
 import { createEnvironment } from './environment.js';
+import { GAME_TITLE, THEME } from './config.js';
 
-const TRACK_NAME = 'Palm Cove Circuit';
+const TRACK_NAME = 'Illini Campus Circuit';
 const SCALE = 1.15;
 const N = 2000;                 // centerline samples
 const HALF_W = 12;              // road half width (roadWidth = 24)
@@ -478,7 +479,7 @@ export function createTrack(scene, renderer) {
 
   const wallTex = TX.makeBarrierTexture();
   const wallMat = mat(new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.55 }));
-  const wallTopMat = mat(new THREE.MeshStandardMaterial({ color: 0xf2f2f2, roughness: 0.5 }));
+  const wallTopMat = mat(new THREE.MeshStandardMaterial({ color: THEME.white, roughness: 0.5 }));
   const railMat = mat(new THREE.MeshStandardMaterial({ map: TX.makeRailTexture(), roughness: 0.45 }));
   const WALL_H = 1.25, WALL_T = 0.7, TEX_LEN = 9.6;
   const vMap = (y) => (y + 0.05) / (WALL_H + 0.05);
@@ -531,7 +532,7 @@ export function createTrack(scene, renderer) {
         }
       }
     }
-    const colors = [new THREE.Color(0xe8322f), new THREE.Color(0xf7f7f7), new THREE.Color(0x1e6fe8), new THREE.Color(0xf7f7f7)];
+    const colors = [new THREE.Color(THEME.orange), new THREE.Color(THEME.white), new THREE.Color(THEME.industrial), new THREE.Color(THEME.white)];
     const dark = new THREE.Color(0x2a2c31);
     const im = new THREE.InstancedMesh(tireGeo, tireMat, places.length * 3);
     const m4 = new THREE.Matrix4();
@@ -555,7 +556,7 @@ export function createTrack(scene, renderer) {
   // Bridge piers
   {
     const pierGeo = new THREE.BoxGeometry(1, 1, 1);
-    const pierMat = mat(new THREE.MeshStandardMaterial({ color: 0xd9d4c7, roughness: 0.85 }));
+    const pierMat = mat(new THREE.MeshStandardMaterial({ color: THEME.limestone, roughness: 0.85 }));
     const mats = [];
     for (const [a, b] of bridgeRuns) {
       const span = Math.round(26 / ds);
@@ -591,7 +592,7 @@ export function createTrack(scene, renderer) {
   }
   {
     const rampMat = mat(new THREE.MeshStandardMaterial({ map: TX.makeRampTexture(), roughness: 0.5, side: THREE.DoubleSide }));
-    const sideMat = mat(new THREE.MeshStandardMaterial({ color: 0xffc21a, roughness: 0.6, side: THREE.DoubleSide }));
+    const sideMat = mat(new THREE.MeshStandardMaterial({ color: THEME.amber, roughness: 0.6, side: THREE.DoubleSide }));
     const tops = [], sides = [];
     for (const r of ramps) {
       const hAt = (ii) => r.h * clamp((ii - r.s0) / r.len, 0, 1);
@@ -640,7 +641,7 @@ export function createTrack(scene, renderer) {
     g.rotation.y = head[0];
     // local frame: +Z forward, +X = left (right is -X)
     const xL = wallL[0] + 2.2, xR = -(wallR[0] + 2.2);
-    const pillarMat = mat(new THREE.MeshStandardMaterial({ map: TX.makeStripeTexture('#ffffff', '#e8322f', 10), roughness: 0.5 }));
+    const pillarMat = mat(new THREE.MeshStandardMaterial({ map: TX.makeStripeTexture(), roughness: 0.5 }));
     pillarMat.map.rotation = Math.PI / 2;
     const pGeo = new THREE.CylinderGeometry(0.9, 1.1, 12, 16);
     disposables.push(pGeo);
@@ -649,10 +650,10 @@ export function createTrack(scene, renderer) {
       p.position.set(x, 6, 0); p.castShadow = true; g.add(p);
     }
     const span = xL - xR + 2.5;
-    const bannerTex = TX.makeBannerTexture('TURBO KART RALLY');
+    const bannerTex = TX.makeBannerTexture(GAME_TITLE.toUpperCase());
     disposables.push(bannerTex);
-    const beamSide = mat(new THREE.MeshStandardMaterial({ color: 0xc81e1e, roughness: 0.5 }));
-    const bannerMat = mat(new THREE.MeshStandardMaterial({ map: bannerTex, roughness: 0.5, emissive: 0x220000 }));
+    const beamSide = mat(new THREE.MeshStandardMaterial({ color: THEME.blue, roughness: 0.5 }));
+    const bannerMat = mat(new THREE.MeshStandardMaterial({ map: bannerTex, roughness: 0.5, emissive: 0x001133 }));
     const beamGeo = new THREE.BoxGeometry(span, 3, 1.4);
     disposables.push(beamGeo);
     const beam = new THREE.Mesh(beamGeo, [beamSide, beamSide, beamSide, beamSide, bannerMat, bannerMat]);
@@ -666,7 +667,7 @@ export function createTrack(scene, renderer) {
     const lampGeo = new THREE.SphereGeometry(0.62, 16, 12);
     disposables.push(lampGeo);
     for (let k = 0; k < 3; k++) {
-      const lm = mat(new THREE.MeshStandardMaterial({ color: 0x331111, emissive: 0x000000, roughness: 0.3 }));
+      const lm = mat(new THREE.MeshStandardMaterial({ color: 0x1a2333, emissive: 0x000000, roughness: 0.3 }));
       const lamp = new THREE.Mesh(lampGeo, lm);
       lamp.position.set((k - 1) * 2, 8.4, -0.85);
       g.add(lamp); lamps.push(lm);
@@ -687,7 +688,7 @@ export function createTrack(scene, renderer) {
       const on = k < n;
       m.emissive.setHex(on ? color : 0x000000);
       m.emissiveIntensity = on ? 3 : 0;
-      m.color.setHex(on ? color : 0x331111);
+      m.color.setHex(on ? color : 0x1a2333);
     });
   };
   let lampTimer = 0;

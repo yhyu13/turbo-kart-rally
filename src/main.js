@@ -43,7 +43,7 @@ const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerH
 camera.position.set(0, 30, 60);
 
 const fallbackScene = new THREE.Scene();
-fallbackScene.background = new THREE.Color(0x2a6fdb);
+fallbackScene.background = new THREE.Color(0x1d58a7);
 
 const composer = new EffectComposer(renderer);
 composer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));

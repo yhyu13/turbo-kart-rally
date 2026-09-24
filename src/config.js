@@ -1,6 +1,47 @@
 // Shared tuning + roster. Every module reads from here; do not duplicate these values.
 
-export const GAME_TITLE = 'Turbo Kart Rally';
+export const GAME_TITLE = 'Illini Kart Classic';
+
+// ---------------------------------------------------------------------------------------------
+// Theme — the UIUC brand palette. Single source of truth: every module (world, textures, UI)
+// imports from here, so re-tuning the theme is a one-file change. Never retype these hexes.
+// Verified against brand.illinois.edu/web/web-color on 2026-09-24: il-blue #13294B,
+// il-orange #FF5F05, il-industrial #1D58A7, il-altgeld #C84113, il-arches-90 #C4E9F5,
+// il-storm-95 #F4F4F4, il-storm-10 #252525.
+// ---------------------------------------------------------------------------------------------
+export const THEME = {
+  blue:       0x13294b,   // il-blue      — deep blue: UI panels, night, deep water
+  industrial: 0x1d58a7,   // il-industrial— mid blue: sky zenith, railings, UI gradient
+  arches:     0xc4e9f5,   // il-arches-90 — pale blue: horizon, highlights, water sheen
+  orange:     0xff5f05,   // il-orange    — primary orange: kerbs, barriers, CTA
+  amber:      0xfcb316,   // orange grad. — gold-orange: boost glow, title gradient
+  altgeld:    0xc84113,   // il-altgeld   — brick orange: masonry, orange shadow
+  white:      0xf4f4f4,   // il-storm-95  — off white
+  ink:        0x252525,   // il-storm-10  — near black
+  limestone:  0xe5e0d5,   // campus Indiana limestone
+  stone:      0xc6bba6,   // limestone, shaded
+  grass1:     0x5e9a46,   // quad lawn
+  grass2:     0x7fb35c,
+  grass3:     0x3f7a34,
+  corn:       0xd9b545,   // #MorrowPlots, and the mooncake-warm accent
+};
+
+// The same palette as CSS strings, for the CanvasTexture painters.
+export const THEME_CSS = {
+  blue: '#13294b',
+  industrial: '#1d58a7',
+  arches: '#c4e9f5',
+  orange: '#ff5f05',
+  amber: '#fcb316',
+  altgeld: '#c84113',
+  white: '#f4f4f4',
+  ink: '#252525',
+  limestone: '#e5e0d5',
+  stone: '#c6bba6',
+  grass: '#5e9a46',
+  lawn: '#7fb35c',
+  corn: '#d9b545',
+};
 
 export const RACE = {
   laps: 3,
@@ -30,15 +71,22 @@ export const PHYSICS = {
 
 // stats are 1..5. speed -> top speed, accel -> acceleration, handling -> turn rate/drift,
 // weight -> bump resolution (heavier pushes lighter).
+//
+// Roster: eight campus buildings drive the karts. `id` is the stable key (models.js STYLE and the
+// portrait cache are keyed by it) — rename the display `name`, never the id. Every name is 7
+// characters or fewer: nameDecalTex() paints the name across the kart without auto-fitting.
+// Colours are chosen so all eight stay readable apart on the minimap; four of them are also the
+// real material of the building they are named after (Lincoln brick, Altgeld brick, Siebel glass,
+// Noyes limestone, Mumford's ag green).
 export const CHARACTERS = [
-  { id: 'blaze',  name: 'Blaze',  color: 0xe53935, accent: 0xffffff, skin: 0xffcc99, hat: 'cap',     stats: { speed: 3, accel: 3, handling: 3, weight: 3 } },
-  { id: 'zippy',  name: 'Zippy',  color: 0x43a047, accent: 0xffffff, skin: 0xffcc99, hat: 'cap',     stats: { speed: 3, accel: 4, handling: 3, weight: 2 } },
-  { id: 'bella',  name: 'Bella',  color: 0xf06292, accent: 0xfff176, skin: 0xffe0bd, hat: 'crown',   stats: { speed: 2, accel: 4, handling: 5, weight: 2 } },
-  { id: 'toadly', name: 'Toadly', color: 0x1e88e5, accent: 0xffffff, skin: 0xffe0bd, hat: 'mushroom',stats: { speed: 2, accel: 5, handling: 4, weight: 1 } },
-  { id: 'rex',    name: 'Rex',    color: 0x2e7d32, accent: 0xff8f00, skin: 0x9ccc65, hat: 'horns',   stats: { speed: 5, accel: 1, handling: 2, weight: 5 } },
-  { id: 'grumbo', name: 'Grumbo', color: 0xfdd835, accent: 0x6a1b9a, skin: 0xffcc99, hat: 'cap',     stats: { speed: 4, accel: 2, handling: 2, weight: 4 } },
-  { id: 'koopz',  name: 'Koopz',  color: 0x00acc1, accent: 0xfff9c4, skin: 0xaed581, hat: 'shell',   stats: { speed: 3, accel: 3, handling: 4, weight: 2 } },
-  { id: 'dotty',  name: 'Dotty',  color: 0x8e24aa, accent: 0xffeb3b, skin: 0xffe0bd, hat: 'bow',     stats: { speed: 2, accel: 4, handling: 4, weight: 1 } },
+  { id: 'blaze',  name: 'Lincoln',  color: 0xb0332a, accent: 0xf2e6d8, skin: 0xffcc99, hat: 'mortarboard', stats: { speed: 3, accel: 3, handling: 3, weight: 3 } },
+  { id: 'zippy',  name: 'Gregory',  color: 0x0e8fa8, accent: 0xffffff, skin: 0xffcc99, hat: 'cap',         stats: { speed: 3, accel: 4, handling: 3, weight: 2 } },
+  { id: 'bella',  name: 'Siebel',   color: 0x1d58a7, accent: 0x7fd3f0, skin: 0xffe0bd, hat: 'mortarboard', stats: { speed: 2, accel: 4, handling: 5, weight: 2 } },
+  { id: 'toadly', name: 'Noyes',    color: 0xd8dee6, accent: 0x1d58a7, skin: 0xffe0bd, hat: 'mortarboard', stats: { speed: 2, accel: 5, handling: 4, weight: 1 } },
+  { id: 'rex',    name: 'Altgeld',  color: 0xc84113, accent: 0xf4f4f4, skin: 0xffcc99, hat: 'cap',         stats: { speed: 5, accel: 1, handling: 2, weight: 5 } },
+  { id: 'grumbo', name: 'Armory',   color: 0xe0a02a, accent: 0x13294b, skin: 0xffcc99, hat: 'crown',       stats: { speed: 4, accel: 2, handling: 2, weight: 4 } },
+  { id: 'koopz',  name: 'Mumford',  color: 0x4e8f3a, accent: 0xf4e7c3, skin: 0xaed581, hat: 'cap',         stats: { speed: 3, accel: 3, handling: 4, weight: 2 } },
+  { id: 'dotty',  name: 'Bevier',   color: 0x7e4fa8, accent: 0xffeb3b, skin: 0xffe0bd, hat: 'bow',         stats: { speed: 2, accel: 4, handling: 4, weight: 1 } },
 ];
 
 export const ITEMS = ['mushroom', 'triple_mushroom', 'banana', 'green_shell', 'red_shell', 'star', 'lightning', 'blue_shell'];

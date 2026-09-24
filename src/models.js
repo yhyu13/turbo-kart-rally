@@ -324,14 +324,14 @@ const sphere = (r = 1, w = 24, h = 16, ...rest) => new THREE.SphereGeometry(r, w
 // Character styles
 // ---------------------------------------------------------------------------------------------
 const STYLE = {
-  blaze:  { hair: 0x6b3b1c, eye: 0x2f6fe0, mustache: 'small', gloves: true },
-  zippy:  { hair: 0x5a3316, eye: 0x2e9d4a, freckles: true, gloves: true, tuft: true },
-  bella:  { hair: 0xffd54f, eye: 0x2e86de, longHair: true, lashes: true, gloves: true, lips: true },
+  blaze:  { hair: 0x3a2a1e, eye: 0x2f3b52, mustache: 'small', gloves: true },
+  zippy:  { hair: 0x5a3316, eye: 0x1d3a5c, freckles: true, gloves: true, tuft: true },
+  bella:  { hair: 0x2b2118, eye: 0x2e86de, longHair: true, lashes: true, gloves: true, lips: true },
   toadly: { eye: 0x1b1b24, gloves: true, vest: true },
-  rex:    { eye: 0xff8f00, snout: 'dino', gloves: false, tail: true, brows: 'dino' },
-  grumbo: { hair: 0x2c1d12, eye: 0x6a1b9a, mustache: 'big', brows: 'grumpy', wide: 1.18, bigNose: true, gloves: true },
-  koopz:  { eye: 0x1565c0, snout: 'beak', gloves: false },
-  dotty:  { hair: 0x6d4028, eye: 0x8e24aa, pigtails: true, lashes: true, gloves: true, bowColor: 0xff4f9a },
+  rex:    { hair: 0x2b2b2b, eye: 0x5c2a10, mustache: 'big', brows: 'grumpy', wide: 1.15, gloves: true },
+  grumbo: { hair: 0x2c1d12, eye: 0x3d2b1f, mustache: 'big', brows: 'grumpy', wide: 1.18, bigNose: true, gloves: true },
+  koopz:  { hair: 0x4a3a24, eye: 0x2e5d2a, gloves: true },
+  dotty:  { hair: 0x6d4028, eye: 0x8e24aa, pigtails: true, lashes: true, gloves: true, bowColor: 0xb08fe0 },
 };
 function styleFor(ch) {
   const s = STYLE[ch.id];
@@ -743,6 +743,16 @@ function buildHead(ch, st) {
     const brim = new THREE.CylinderGeometry(0.22, 0.22, 0.03, 28, 1, false, -PI / 2, PI);
     b.add(brim, 'paint', M([0, 0.07, 0.22], [0.14, 0, 0], [1.08, 1, 1.3]));
     b.add(sphere(0.035, 10, 8), 'paint', M([0, R * 0.99, -0.03]));
+  } else if (hat === 'mortarboard') {
+    // Graduation cap: skull cap + tilted square board + a tassel off the front-right corner.
+    b.add(sphere(R * 1.06, 32, 16, 0, TAU, 0, PI * 0.52), 'paint', M([0, 0.02, -0.01], [-0.1, 0, 0], [1, 0.84, 1]));
+    const board = new THREE.BoxGeometry(0.52, 0.022, 0.52).rotateY(PI / 4);
+    b.add(board, 'paint', M([0, 0.3, -0.01], [0, 0, 0]));
+    b.add(sphere(0.028, 12, 8), 'paint', M([0, 0.318, -0.01]));
+    const tasselM = stdMat(ch.accent, 0.4);
+    b.add(new THREE.CylinderGeometry(0.007, 0.007, 0.24, 6).rotateZ(PI / 2).rotateY(-PI / 4), tasselM, M([0.115, 0.313, 0.105]));
+    b.add(new THREE.CylinderGeometry(0.013, 0.013, 0.15, 8), tasselM, M([0.16, 0.24, 0.15]));
+    b.add(new THREE.CylinderGeometry(0.026, 0.008, 0.06, 8), tasselM, M([0.16, 0.14, 0.15]));
   } else if (hat === 'crown') {
     const gold = MAT.gold;
     b.add(new THREE.CylinderGeometry(0.17, 0.15, 0.1, 24, 1, true), gold, M([0, 0.32, -0.02], [-0.12, 0, 0]));
@@ -1140,30 +1150,31 @@ function itemBoxFaceTex() {
     // faint inner fill
     g.fillStyle = 'rgba(255,255,255,0.10)';
     g.fillRect(0, 0, w, h);
-    // rainbow frame
-    const grd = g.createLinearGradient(0, 0, w, h);
-    ['#ff1744', '#ff9100', '#ffea00', '#00e676', '#00b0ff', '#d500f9', '#ff1744'].forEach((c, i, a) => grd.addColorStop(i / (a.length - 1), c));
-    g.strokeStyle = grd;
+    // orange frame on Illinois blue — the crate carries the campus "I"
+    g.strokeStyle = '#13294b';
     g.lineWidth = 26;
     roundRectPath(g, 13, 13, w - 26, h - 26, 22);
     g.stroke();
+    g.strokeStyle = '#ff5f05';
+    g.lineWidth = 14;
+    roundRectPath(g, 26, 26, w - 52, h - 52, 18);
+    g.stroke();
     g.strokeStyle = 'rgba(255,255,255,0.85)';
     g.lineWidth = 4;
-    roundRectPath(g, 28, 28, w - 56, h - 56, 14);
+    roundRectPath(g, 40, 40, w - 80, h - 80, 12);
     g.stroke();
-    // "?" with glow
-    g.font = `900 ${Math.round(h * 0.62)}px "Arial Black", "Lilita One", Arial, sans-serif`;
-    g.textAlign = 'center'; g.textBaseline = 'middle';
+    // the letter I, drawn as geometry (no official logo file anywhere in this project)
     g.shadowColor = 'rgba(255,255,255,1)';
-    g.shadowBlur = 24;
-    g.lineWidth = 14; g.lineJoin = 'round';
-    const qg = g.createLinearGradient(0, h * 0.2, 0, h * 0.8);
-    qg.addColorStop(0, '#ff9100'); qg.addColorStop(1, '#ff1744');
-    g.strokeStyle = qg;
-    g.strokeText('?', w / 2, h / 2 + h * 0.04);
-    g.shadowBlur = 0;
+    g.shadowBlur = 22;
     g.fillStyle = '#ffffff';
-    g.fillText('?', w / 2, h / 2 + h * 0.04);
+    g.fillRect(w / 2 - 16, h * 0.24, 32, h * 0.52);
+    g.fillRect(w / 2 - 46, h * 0.24, 92, 26);
+    g.fillRect(w / 2 - 46, h * 0.76 - 26, 92, 26);
+    g.shadowBlur = 0;
+    g.fillStyle = '#ff5f05';
+    g.fillRect(w / 2 - 16, h * 0.24, 32, h * 0.52);
+    g.fillRect(w / 2 - 46, h * 0.24, 92, 26);
+    g.fillRect(w / 2 - 46, h * 0.76 - 26, 92, 26);
   }, 256, 256);
 }
 
@@ -1277,48 +1288,35 @@ function buildShell(type) {
   return root;
 }
 
+// The dropped hazard is an ear of Illinois corn (Morrow Plots, 1876). Same gameplay item id
+// ('banana') — only the model changed. Built standing on y = 0; items.js re-seats the origin.
 function buildBananaParts() {
   const b = new Builder();
-  const peel = cached('banana:peel', () => new THREE.MeshPhysicalMaterial({ color: 0xffc400, roughness: 0.45, clearcoat: 0.6, clearcoatRoughness: 0.2, envMap: envMap(), envMapIntensity: 0.7, side: THREE.DoubleSide }));
-  const brown = stdMat(0x6b4a1e, 0.7);
-  const inner = stdMat(0xfff6c8, 0.6);
-  const top = V3(0, 0.62, 0);
-  // fruit stub (bent capsule)
-  const stub = new THREE.CapsuleGeometry(0.12, 0.42, 8, 16);
-  const p = stub.attributes.position;
-  for (let i = 0; i < p.count; i++) {
-    const y = p.getY(i);
-    p.setX(i, p.getX(i) + 0.25 * Math.pow((y + 0.33) / 0.66, 2) * 0.35);
+  const cob = cached('corn:cob', () => new THREE.MeshPhysicalMaterial({ color: 0xe0a02a, roughness: 0.5, clearcoat: 0.35, clearcoatRoughness: 0.35, envMap: envMap(), envMapIntensity: 0.6 }));
+  const kernel = cached('corn:kernel', () => new THREE.MeshPhysicalMaterial({ color: 0xf8d465, roughness: 0.42, clearcoat: 0.4, clearcoatRoughness: 0.3, envMap: envMap(), envMapIntensity: 0.5 }));
+  const husk = cached('corn:husk', () => new THREE.MeshLambertMaterial({ color: 0x4e8f3a, side: THREE.DoubleSide }));
+  const silk = stdMat(0xd7b26a, 0.55);
+  // the ear: tapered body, rounded at both ends
+  b.add(new THREE.CylinderGeometry(0.088, 0.118, 0.5, 14, 1, false), cob, M([0, 0.3, 0]));
+  b.add(sphere(0.118, 14, 10), cob, M([0, 0.07, 0]));
+  b.add(sphere(0.088, 14, 10), cob, M([0, 0.54, 0]));
+  // kernel rows: four ridge rings read as kernels at kart scale and cost ~1k triangles
+  for (let k = 0; k < 4; k++) {
+    const y = 0.16 + k * 0.1;
+    const rr = 0.118 - k * 0.007;
+    b.add(new THREE.TorusGeometry(rr, 0.014, 6, 14).rotateX(PI / 2), kernel, M([0, y, 0]));
   }
-  stub.computeVertexNormals();
-  b.add(stub, inner, M([0, 0.42, 0]));
-  // stem
-  b.add(new THREE.CylinderGeometry(0.035, 0.05, 0.14, 10), brown, M([0.11, 0.76, 0], [0, 0, -0.3]));
-  // peel flaps
-  const n = 3;
-  for (let i = 0; i < n; i++) {
-    const phiC = (i / n) * TAU + 0.3;
-    const d = V3(-Math.cos(phiC), 0, Math.sin(phiC));
-    const axis = V3(-d.z, 0, d.x).normalize();
-    const g = new THREE.SphereGeometry(0.3, 12, 14, phiC - 0.62, 1.24, 0, PI * 0.58);
-    // taper the flap tips (narrow toward the pole & ends)
-    const pa = g.attributes.position;
-    for (let k = 0; k < pa.count; k++) {
-      const x = pa.getX(k), y = pa.getY(k), z = pa.getZ(k);
-      const t = 1 - y / 0.3; // 0 at pole
-      const flare = 1 + Math.max(0, t - 0.7) * 1.2;
-      pa.setXYZ(k, x * flare, y, z * flare);
-    }
-    g.computeVertexNormals();
-    const mm = new THREE.Matrix4().makeTranslation(top.x, top.y, top.z)
-      .multiply(new THREE.Matrix4().makeRotationAxis(axis, 0.38))
-      .multiply(M([0, -0.3 * 1.8, 0], [0, 0, 0], [1.05, 1.8, 1.05]));
-    b.add(g, peel, mm);
-    // brown tip
-    const tipDir = d.clone();
-    const tipLocal = V3(tipDir.x * 0.3 * Math.sin(PI * 0.58) * 1.05 * 1.25, -0.3 * 1.8 + 0.3 * 1.8 * Math.cos(PI * 0.58), tipDir.z * 0.3 * Math.sin(PI * 0.58) * 1.05 * 1.25);
-    const tipP = tipLocal.applyAxisAngle(axis, 0.38).add(top);
-    b.add(sphere(0.05, 10, 8), brown, M([tipP.x, Math.max(0.03, tipP.y), tipP.z], [0, 0, 0], [1, 0.6, 1]));
+  // dried silk at the tip
+  b.add(new THREE.ConeGeometry(0.028, 0.1, 8), silk, M([0, 0.62, 0]));
+  // husk leaves, peeling away from the base
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * TAU + 0.5;
+    const leaf = new THREE.BoxGeometry(0.032, 0.34, 0.15);
+    const m = new THREE.Matrix4().makeTranslation(Math.cos(a) * 0.11, 0.17, Math.sin(a) * 0.11)
+      .multiply(new THREE.Matrix4().makeRotationY(-a))
+      .multiply(new THREE.Matrix4().makeRotationX(PI / 2))
+      .multiply(new THREE.Matrix4().makeRotationZ(0.32));
+    b.add(leaf, husk, m);
   }
   return b.build();
 }
@@ -1537,6 +1535,17 @@ function drawPortrait(g, ch, st) {
     shape('#ffffff', () => g.arc(cx, cy - 33, 9, 0, TAU), 2);
     g.fillStyle = col; g.font = '900 13px "Arial Black", Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
     g.fillText(ch.name.charAt(0).toUpperCase(), cx, cy - 32);
+  } else if (hat === 'mortarboard') {
+    if (hair) shape(hair, () => { ell(cx - 24, cy - 6, 6, 9); }, 2);
+    if (hair) shape(hair, () => { ell(cx + 24, cy - 6, 6, 9); }, 2);
+    // skull cap band, then the board seen at an angle (front corner low)
+    shape(col, () => { g.moveTo(cx - R - 2, cy - 12); g.bezierCurveTo(cx - R, cy - 46, cx + R, cy - 46, cx + R + 2, cy - 12); g.closePath(); });
+    shape(col, () => { g.moveTo(cx, cy - 58); g.lineTo(cx + 40, cy - 41); g.lineTo(cx, cy - 24); g.lineTo(cx - 40, cy - 41); g.closePath(); });
+    shape(acc, () => g.arc(cx, cy - 41, 3.4, 0, TAU), 1.5);
+    g.strokeStyle = acc; g.lineWidth = 2.5; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(cx, cy - 41); g.lineTo(cx + 38, cy - 40); g.stroke();
+    g.beginPath(); g.moveTo(cx + 38, cy - 40); g.lineTo(cx + 38, cy - 23); g.stroke();
+    shape(acc, () => g.arc(cx + 38, cy - 20, 3.6, 0, TAU), 1.5);
   } else if (hat === 'crown') {
     shape(hair || '#ffd54f', () => { g.moveTo(cx - R, cy - 2); g.bezierCurveTo(cx - R - 2, cy - 44, cx + R + 2, cy - 44, cx + R, cy - 2); g.quadraticCurveTo(cx + 14, cy - 22, cx, cy - 18); g.quadraticCurveTo(cx - 14, cy - 22, cx - R, cy - 2); g.closePath(); });
     shape('#ffc630', () => { g.moveTo(cx - 20, cy - 30); g.lineTo(cx - 22, cy - 50); g.lineTo(cx - 11, cy - 40); g.lineTo(cx, cy - 54); g.lineTo(cx + 11, cy - 40); g.lineTo(cx + 22, cy - 50); g.lineTo(cx + 20, cy - 30); g.closePath(); });

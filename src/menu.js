@@ -90,7 +90,7 @@ export class Menu {
       </div>
       <div class="press-start">PRESS ENTER / CLICK TO START</div>
       <div class="title-foot">
-        <span>© Turbo Kart Rally · original procedural game</span>
+        <span>© ${GAME_TITLE} · fan project · no official UIUC marks used</span>
         <span class="kc">M</span> mute
       </div>`;
     t.addEventListener('click', () => { if (this.screen === 'title') this._toSelect(); });
