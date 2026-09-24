@@ -751,6 +751,7 @@ export function createTrack(scene, renderer) {
     waterLevel: WATER_LEVEL,
     sunLight: env.sunLight,
     groundAt: env.groundAt,
+    landmarkNames: env.landmarkNames,
     getWallOffsets(t) {
       const s = (((t % 1) + 1) % 1) * N, a = Math.floor(s) % N, b = (a + 1) % N, f = s - Math.floor(s);
       return { left: lerpArr(wallL, a, b, f), right: lerpArr(wallR, a, b, f) };

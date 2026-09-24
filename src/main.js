@@ -1,4 +1,4 @@
-// Turbo Kart Rally — bootstrap, renderer, post-processing, game state machine and main loop.
+// Illini Kart Classic — bootstrap, renderer, post-processing, game state machine and main loop.
 import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';

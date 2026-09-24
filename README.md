@@ -38,7 +38,12 @@ The whole game was produced by five Claude Opus 5.5 sub-agents working in parall
 
 ## Play
 
-Open **https://bridge-mind.github.io/turbo-kart-rally/** in a desktop browser with WebGL2 (Chrome, Edge, Firefox or Safari). Click or press Enter on the title screen, choose one of eight racers, pick a class (50cc, 100cc or 150cc) and a lap count, then hit RACE!. A keyboard or a gamepad works.
+**Just want to play?** Download [`dist/illini-kart-classic.html`](dist/illini-kart-classic.html) and
+double-click it — that single file contains the game and three.js, so it needs no server and no
+network. Otherwise open
+**https://bridge-mind.github.io/turbo-kart-rally/** in a desktop browser with WebGL2 (Chrome, Edge,
+Firefox or Safari). Click or press Enter on the title screen, choose one of eight racers, pick a
+class (50cc, 100cc or 150cc) and a lap count, then hit RACE!. A keyboard or a gamepad works.
 
 Race seven AI drivers around the Illini Campus Circuit. Drift through corners and release for a mini-turbo. Grab item boxes and fire shells, drop corn, pop mushrooms, or call down lightning on the field.
 

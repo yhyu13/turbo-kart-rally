@@ -42,7 +42,7 @@ export class Menu {
     this._pad = { prev: {}, repeatT: 0, dir: null };
     this.gameState = 'title';
     try {
-      const s = JSON.parse(localStorage.getItem('tkr-settings') || '{}');
+      const s = JSON.parse(localStorage.getItem('ikc-settings') || '{}');
       if (s.charIndex >= 0 && s.charIndex < CHARACTERS.length) this.charIndex = s.charIndex;
       if (s.diffIndex >= 0 && s.diffIndex < DIFFS.length) this.diffIndex = s.diffIndex;
       if (s.lapsIndex >= 0 && s.lapsIndex < LAPS.length) this.lapsIndex = s.lapsIndex;
@@ -252,7 +252,7 @@ export class Menu {
   }
   _start() {
     if (this.screen !== 'select') return;
-    try { localStorage.setItem('tkr-settings', JSON.stringify({ charIndex: this.charIndex, diffIndex: this.diffIndex, lapsIndex: this.lapsIndex })); } catch (e) { /* ignore */ }
+    try { localStorage.setItem('ikc-settings', JSON.stringify({ charIndex: this.charIndex, diffIndex: this.diffIndex, lapsIndex: this.lapsIndex })); } catch (e) { /* ignore */ }
     bus.emit('ui:confirm');
     this.h.onStart && this.h.onStart(this.settings);
   }
