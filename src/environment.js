@@ -157,8 +157,10 @@ export function createEnvironment(scene, renderer, root, L) {
   const LANDFORMS = [
     { x: 264, z: 290, r: 300, h: 34, e: 1.2 },    // the summit the lap climbs to
     { x: 285, z: 150, r: 280, h: 20, e: 1.2 },    // the shoulder the S-bend runs down
-    { x: 300, z: -180, r: 260, h: 16, e: 1.2 },   // the rise the bridge crosses
     { x: -150, z: -335, r: 230, h: -8, e: 1.4 },  // the hollow holding the hairpin
+    // NOTE: no landform around the lagoon. The corridor blend is switched off wherever the route is
+    // on the bridge (the deck is 20 m above the water), so any raised ground in that band stays
+    // raised *and* unflattened — which is how grass ends up on top of the tarmac on the approaches.
   ];
   function landform(x, z) {
     let up = 0, down = 0;
@@ -187,25 +189,33 @@ export function createEnvironment(scene, renderer, root, L) {
     h = lerp(h, -9 - 3 * fbm(x * 0.03, z * 0.03), 1 - smoothstep(L.lake.r * 0.72, L.lake.r + 14, dl));
     return h;
   }
-  const corridor = { w: 0, y: 0, d: 0, wall: 0, i: -1 };
+  const corridor = { w: 0, y: 0, d: 0, wall: 0, i: -1, lat: 0 };
   // How far out the terrain is dragged toward the road profile. Wide enough that a 30 m climb does
   // not leave the road on a vertical earth wall, tight enough that the island keeps its own shape.
   const CORRIDOR_BLEND = 72;
   function corridorAt(x, z) {
     const q = L.nearest(x, z, true);
     corridor.i = q.i;
-    if (q.i < 0) { corridor.w = 0; corridor.d = 1e9; return corridor; }
+    if (q.i < 0) { corridor.w = 0; corridor.d = 1e9; corridor.lat = 1e9; return corridor; }
     const i = q.i, d = Math.sqrt(q.d2);
     const lat = (x - L.px[i]) * L.rx[i] + (z - L.pz[i]) * L.rz[i];
     const wall = lat >= 0 ? L.wallR[i] : L.wallL[i];
-    corridor.d = d; corridor.wall = wall; corridor.y = L.py[i];
+    corridor.d = d; corridor.wall = wall; corridor.y = L.py[i]; corridor.lat = lat;
     corridor.w = (1 - smoothstep(wall + 4, wall + CORRIDOR_BLEND, d)) * (1 - L.bridge[i]);
     return corridor;
   }
   function heightAt(x, z) {
     const n = natural(x, z);
     const c = corridorAt(x, z);
-    return c.w > 0 ? lerp(n, c.y - 0.6, c.w) : n;
+    let h = c.w > 0 ? lerp(n, c.y - 0.6, c.w) : n;
+    // Hard guarantee: inside the road's own footprint the ground never rises above the tarmac. The
+    // corridor blend is deliberately off over the bridge, and one raised landform in that band was
+    // enough to bury the approaches in grass; this cap makes that class of bug impossible.
+    if (c.i >= 0 && Math.abs(c.lat) <= L.halfWidth + 4 && L.roadTop) {
+      const cap = L.roadTop(c.i, c.lat) - 0.45;
+      if (h > cap) h = cap;
+    }
+    return h;
   }
 
   const T_SIZE = 1900, T_SEG = 280;

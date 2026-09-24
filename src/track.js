@@ -725,6 +725,9 @@ export function createTrack(scene, renderer) {
   const layout = {
     N, ds, length, px, py, pz, rx, rz, tx, tz, head, kS, wallL, wallR, bridge, halfWidth: HALF_W,
     nearest: (x, z, noFallback = false) => { const i = nearestGrid(x, z, noFallback); return { i, d2: _nd2 }; },
+    // Road surface height at a sample + lateral offset (grade + camber): lets the terrain builder
+    // guarantee that ground never pokes through the tarmac.
+    roadTop: (i, lat) => py[i] + bankDy(i, lat),
     lake: LAKE, waterLevel: WATER_LEVEL,
     bounds: { minX, maxX, minZ, maxZ },
     boostPads, ramps, startPositions,
