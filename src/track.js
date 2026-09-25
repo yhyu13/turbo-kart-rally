@@ -12,7 +12,9 @@ import * as TX from './track-textures.js';
 import { createEnvironment } from './environment/index.js';
 import { GAME_TITLE, THEME } from './config.js';
 
-const TRACK_NAME = 'Illini Campus Circuit';
+export const TRACK_NAME = 'Illini Campus Circuit';
+// 稳定标识：成绩桶的键用它（不随昼夜/方向/显示名变化），改显示名不会弄丢玩家 PB。
+export const TRACK_ID = 'campus';
 const SCALE = 1.15;
 const N = 2000;                 // centerline samples
 const HALF_W = 12;              // road half width (roadWidth = 24)
@@ -772,7 +774,10 @@ export function createTrack(scene, renderer, opts = {}) {
 
   // ------------------------------------------------------------------ Track object
   Object.assign(track, {
+    id: TRACK_ID,
     name: trackName,
+    // 不带 “ · Reverse” 后缀的名字，用于成绩榜标题（方向另有标签）
+    baseName: TRACK_NAME,
     reverse,
     curve,
     length,

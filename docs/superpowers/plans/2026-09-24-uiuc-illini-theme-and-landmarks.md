@@ -457,3 +457,48 @@ const lat  = (l) => (reverse ? -l : l);
 - `setControlsOpen(open, pinned)` 区分“自动展开”与“玩家展开”：只有后者能阻止自动收起；
 - `startRace()` 入口现在会先 `exitDemo()`，且帧循环里的轮换只在菜单/标题态触发（`state !== racing|intro|loading|finished`）—— 防止“race 进行中 demo 定时器把世界重建掉”这种只有程序化调用才会踩到的坑；
 - 实测（Chromium）：开赛 `open=true / full=flex` → 11 s 后 `open=false / full=none / strip opacity 0.6` → 按 H `open=true` → 再按 H `open=false` → 结算 `muted=true`；位置 18,452 尺寸 430×188（展开）/ 376×36（收起），全部落在小地图上方空白区，零报错。CI 新增三条断言。
+
+## 17. 玩家账号 + 分设置排行榜（用户需求）
+
+需求原话：“要能注册玩家账号，用来刷 pb，圈速 leader board 每个赛道白天黑夜不一样”。
+两个已确认的口径：**本机存档**（不要后端，双击 dist 就能用，一台街机多人共用）、**只要名字**（零摩擦）。
+
+### 17.1 存储层 `src/accounts.js`
+
+- `localStorage` 两个键：`ikc-players`（全部玩家）、`ikc-active-player`（当前是谁）。
+- 成绩桶键 **`<trackId>|<day|night>|<fwd|rev>`** —— 白天正向和夜晚反向是两种完全不同的挑战，绝不混榜。
+  `TRACK_ID = 'campus'`（`track.js` 导出）与显示名分开，所以以后改赛道名不会弄丢任何人的 PB。
+- 每条成绩存 `{lap, race, cls, kart, at}`：单圈 PB、总时间 PB、记录时的组别（100cc…）与车手，榜上把组别一起显示出来。
+- 名字规范化 + 大小写不敏感查重（“Yhyu”/“yhyu ”不会变成两个档）；同名“注册”= 直接选中已有档。
+- 存储不可用（隐私模式/配额满）时降级成内存档，游戏照常跑 —— 不抛异常。
+- **只在真比赛里写档**：`main.js` 在 `race:lap`（仅玩家车、且 `world.mode === 'race'`）与 `race:end` 时记录；
+  attract demo 与 AI 车永远不碰存档。
+
+### 17.2 三个入口 + 两处显示
+
+| 位置 | 内容 |
+| --- | --- |
+| 标题页账号条 / **N** | `PLAYER <名字>` chip，点开玩家页：输入名字 → CREATE 注册；列表显示每个档的 PB 数 / 圈数 / 场次 / 胜场；选中即换人；✕ 删档（需点两次，第一次变 `SURE?`） |
+| **L** / 标题页 chip | 榜单页：自带 COURSE / DIRECTION 切换（**只切浏览，不改你要跑的设置**），默认就显示选人页当前那一套 |
+| 选人页右侧 | `你 · BEST LAP` + `CABINET RECORD`（含记录保持者名字），跟着 COURSE/DIRECTION 联动 |
+| 比赛 HUD 左上 | `BEST 0:41.62` 常驻显示要追的目标；破纪录时金色脉冲 + 横幅 `NEW LAP RECORD  −0.42s` |
+| 结算页 | 你的单圈 PB、本场总时间（含 `FIRST RECORD` / 差值）、**当前这套设置的前 5 名**，自己那行高亮；访客则提示 `THIS RACE WAS NOT SAVED · PRESS N TO CREATE A PLAYER` |
+
+结算页按 **N/L** 也能开这两个页面，退出会回到结算页（并重画，好让刚建的账号立刻看到自己的 PB）。
+
+### 17.3 顺手修掉的两个真问题
+
+1. **`bus.emit` 会吞异常**：`race:end` → 结算面板那段包进 `safe('race:results', …)`，并给 `audio.playMusic` 加保护 ——
+   之前 `bucketLabel is not defined` 这种错只会静默丢掉整个结算界面。
+2. **键盘不算“有人在玩”**：挂机 demo 只认指针/手柄事件，导致在结算页或玩家页打字时会被 demo 抢屏。现在 keydown 也算活动。
+   另外 `startRace()` 会先 `exitDemo()`、demo 轮换只在菜单态触发，防止程序化开赛时被重建世界。
+
+### 17.4 验证
+
+- 界面实测：标题页 `N` → 玩家页（输入框自动聚焦）→ 输入 `Yhyu` → CREATE → 进选人页且账号条更新；
+  结算页 `N` → 玩家页 → 选人 → 回结算页且提示消失、PB 现算。
+- 分桶实测：Yhyu 白天正向 41.00、Alice 夜晚反向 45.50 → `Yhyu: ['campus|day|fwd']`、`Alice: ['campus|night|rev']`，
+  四张榜互不干扰（`day|rev`、`night|fwd` 依然空）。
+- 访客：跑完一场不写任何档，提示语与行为一致。
+- CI 新增 11 条断言（分桶唯一、只有更快才替换 PB、HUD 差值、结算页榜单、好友上榜排序、玩家列表、榜单页切换方向），
+  全部跑在 **dist 成品页**上。`npm run verify` 现在 43 项全过。

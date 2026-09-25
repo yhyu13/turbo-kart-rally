@@ -2,6 +2,7 @@
 import { bus } from './events.js';
 import { ITEMS, CHARACTERS } from './config.js';
 import { CONTROLS_HTML, CONTROLS_STRIP_HTML } from './controls-help.js';
+import { escHtml } from './accounts.js';
 
 /** Seconds the full key legend stays expanded at the start of a race before folding into the corner. */
 const CONTROLS_TEACH = 10;
@@ -208,6 +209,8 @@ export class HUD {
     this.lapVal = this.lapEl.querySelector('.val');
     this.lapOf = this.lapEl.querySelector('.of');
     this.timerEl = el('div', 'hud-timer', this.tl, '0:00.00');
+    // 本桶个人最好单圈（按赛道×昼夜×方向分开存），比赛里一直看得到要追的目标
+    this.bestEl = el('div', 'hud-best', this.tl);
     this.splitsEl = el('div', 'hud-splits', this.tl);
 
     // top-centre item slot
@@ -326,6 +329,7 @@ export class HUD {
     this.wrongEl.classList.remove('show');
     this.finishEl.className = 'hud-finish';
     this.lapPop.className = 'hud-lappop';
+    this.setBest(null);
     this.hideResults();
     this._buildMinimap(track);
     // teach the keys once per race, then get out of the way (H re-opens it)
@@ -360,6 +364,27 @@ export class HUD {
     this.bannerEl.className = 'hud-banner';
     void this.bannerEl.offsetWidth;
     this.bannerEl.className = `hud-banner show ${cls}`;
+  }
+
+  /** 左上角显示当前桶的个人最好单圈；fresh=true 做一次刷新强调（刚被自己破掉）。 */
+  setBest(lap, { fresh = false, delta = null } = {}) {
+    if (!this.bestEl) return;
+    const has = lap != null && isFinite(lap);
+    this.bestEl.textContent = has ? `BEST ${formatTime(lap)}` : '';
+    this.bestEl.classList.toggle('show', has);
+    if (has && fresh) {
+      this.bestEl.classList.remove('fresh');
+      void this.bestEl.offsetWidth;
+      this.bestEl.classList.add('fresh');
+      if (delta != null) this.bestEl.dataset.delta = `${delta < 0 ? '−' : '+'}${Math.abs(delta).toFixed(2)}`;
+      else delete this.bestEl.dataset.delta;
+    }
+  }
+
+  /** 刚刷新个人最好单圈时的庆祝：横幅 +（首次记录时不报差值）。 */
+  popLapRecord(delta) {
+    const d = delta == null ? '' : `  ${delta < 0 ? '−' : '+'}${Math.abs(delta).toFixed(2)}s`;
+    this.banner(`NEW LAP RECORD${d}`, 'gold');
   }
 
   // ------------------------------------------------------------------ minimap
@@ -586,7 +611,7 @@ export class HUD {
   }
 
   // ------------------------------------------------------------------ results
-  showResults(results, { onRestart, onMenu, laps } = {}) {
+  showResults(results, { onRestart, onMenu, laps, board, boardLabel, playerName, signedIn, raceSave, personalBest } = {}) {
     // the standings take the screen; the corner key legend would only be noise behind it
     this.setControlsOpen(false);
     if (this.ctlEl) this.ctlEl.classList.add('muted');
@@ -605,11 +630,34 @@ export class HUD {
     }).join('');
     const me = results.find((r) => r.isPlayer);
     const title = me ? (me.place === 1 ? 'VICTORY!' : me.place <= 3 ? 'PODIUM FINISH!' : 'RACE COMPLETE') : 'RESULTS';
+    // 本桶（赛道×昼夜×方向）的柜机榜：刷 PB 的动机就来自这张小表
+    const boardRows = (board || []).map((b) => `<div class="res-brow${b.own ? ' me' : ''}">
+        <span class="rb-rank">${b.rank}</span>
+        <span class="rb-name">${escHtml(b.name)}</span>
+        <span class="rb-time">${b.lap != null ? formatTime(b.lap) : '—'}</span>
+        <span class="rb-chip">${b.cls ? escHtml(b.cls) : ''}</span>
+      </div>`).join('');
+    const lapValue = personalBest && personalBest.lap != null ? formatTime(personalBest.lap) : '—';
+    const lapNote = raceSave && raceSave.lapPb && raceSave.lapDelta != null
+      ? `<span class="rb-fresh">NEW · ${raceSave.lapDelta < 0 ? '−' : '+'}${Math.abs(raceSave.lapDelta).toFixed(2)}s</span>`
+      : raceSave && raceSave.lapPb ? '<span class="rb-fresh">FIRST RECORD</span>' : '';
+    const raceNote = raceSave && raceSave.pb && raceSave.delta != null
+      ? `<span class="rb-fresh">−${Math.abs(raceSave.delta).toFixed(2)}s</span>` : raceSave && raceSave.pb ? '<span class="rb-fresh">FIRST RECORD</span>' : '';
+    const statsHtml = `
+      <div class="res-extra">
+        <div class="res-pb">
+          <div class="pb-line"><span class="pb-k">${signedIn ? escHtml(playerName) + ' · BEST LAP' : 'GUEST'}</span><span class="pb-v">${lapValue}</span>${lapNote}</div>
+          <div class="pb-line"><span class="pb-k">RACE TIME</span><span class="pb-v">${me && me.time != null ? (me.estimated ? '~' : '') + formatTime(me.time) : '—'}</span>${raceNote}</div>
+          ${signedIn ? '' : `<div class="pb-hint">GUEST · THIS RACE WAS NOT SAVED · PRESS <b>N</b> TO CREATE A PLAYER</div>`}
+        </div>
+        ${boardRows ? `<div class="res-board"><div class="res-board-h">${escHtml(boardLabel || 'LEADERBOARD')}</div>${boardRows}</div>` : ''}
+      </div>`;
     R.innerHTML = `
       <div class="res-panel">
         <div class="res-title">${title}</div>
         <div class="res-sub">${laps || ''} LAP RACE · FINAL STANDINGS</div>
         <div class="res-table">${rows}</div>
+        ${statsHtml}
         <div class="res-buttons">
           <button class="btn primary" data-act="restart">RACE AGAIN</button>
           <button class="btn" data-act="menu">MAIN MENU</button>

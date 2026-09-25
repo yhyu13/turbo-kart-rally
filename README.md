@@ -40,6 +40,17 @@ This fork keeps the upstream game and its circuit layout untouched, and re-theme
   its own for the first 10 seconds of every race so a newcomer learns the whole keyboard, then folds
   away; **H** re-opens it at any time, and it stays put until you close it. The same legend (one source
   of truth, `src/controls-help.js`) is on the character-select and pause screens.
+- **Player accounts + lap PBs.** The cabinet keeps a profile per player — just a name, no password
+  (**N** on the title/select/results screen opens the player list, or click the `PLAYER` chip). Every
+  lap you complete records a personal best, and the HUD shows the PB you are chasing (`BEST 0:41.62`)
+  plus a `NEW LAP RECORD −0.42s` banner the moment you beat it. Everything lives in this browser's
+  `localStorage`, so it survives reloads and the double-clicked dist works offline.
+- **One leaderboard per setup.** Times are bucketed by **track × day/night × direction** — a day/forward
+  lap is never ranked against a night/reverse lap. The results screen shows your PB, your race time and
+  the top 5 for the setup you just raced; **L** opens the full board and lets you flip through all four.
+  Each player's row shows the engine class the record was set in, and your own row is highlighted.
+  The board is an honest local scoreboard, not an anti-cheat system: anyone with devtools can edit
+  their own file, so it is a cabinet record, not proof.
 
 Track geometry, physics, AI, items and race rules are untouched: `dev/track-test.html` reports the same `centerline mismatches 0` / `racing line offroad 0` as upstream.
 

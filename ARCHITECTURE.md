@@ -28,7 +28,7 @@ A kart racer in the spirit of Mario Kart, built with **Three.js r170** as native
 | `src/kart.js`, `src/ai.js`, `src/input.js` | Agent 2 — Driving | `Kart`, `resolveKartCollisions`, `AIDriver`, `InputController` |
 | `src/items.js`, `src/effects.js` | Agent 3 — Items & FX | `ItemSystem`, `Effects` |
 | `src/models.js`, `src/camera.js` | Agent 4 — Art & Camera | `createKartModel`, `createItemModel`, `ChaseCamera` |
-| `src/main.js`, `src/race.js`, `src/hud.js`, `src/menu.js`, `src/audio.js`, `src/controls-help.js`, `src/styles.css` | Agent 5 — Game & UI | game loop, `RaceManager`, `HUD`, `Menu`, `AudioEngine`, shared key legend |
+| `src/main.js`, `src/race.js`, `src/hud.js`, `src/menu.js`, `src/audio.js`, `src/controls-help.js`, `src/accounts.js`, `src/styles.css` | Agent 5 — Game & UI | game loop, `RaceManager`, `HUD`, `Menu`, `AudioEngine`, shared key legend, local player profiles + lap PBs |
 
 Do **not** edit files you don't own. If you need something from another module, code against this contract.
 
@@ -223,6 +223,19 @@ export class ChaseCamera {
   snap(kart)                // hard reset behind kart
 }
 ```
+
+## 4b. Records — `src/accounts.js`
+
+Local, no backend. One cabinet, many players: `Accounts` keeps a profile per name (no password) in
+`localStorage` (`ikc-players`, the active profile in `ikc-active-player`) and stores lap/race PBs in
+**buckets keyed `<trackId>|<day|night>|<fwd|rev>`** — a night reverse lap is a different challenge from
+a day forward lap and is never ranked against it. `TRACK_ID` lives in `track.js` and is deliberately
+separate from the display name, so renaming the circuit cannot orphan anybody's PBs.
+
+Writes only ever happen from a real race: `main.js` records on `race:lap` (player kart only, and only
+when `world.mode === 'race'`) and on `race:end` — the attract demo and the AI karts never touch the
+store. Storage failures (private mode, full quota) are swallowed: the game keeps running with a
+memory-only profile instead of throwing.
 
 ## 5. Game & UI — `src/main.js`, `src/race.js`, `src/hud.js`, `src/menu.js`, `src/audio.js`, `src/styles.css`
 

@@ -10,6 +10,7 @@ import { RaceManager } from './race.js';
 import { HUD } from './hud.js';
 import { Menu } from './menu.js';
 import { AudioEngine } from './audio.js';
+import { accounts, bucketLabel } from './accounts.js';
 
 // ---------------------------------------------------------------------------------------------
 // Error isolation: one failing subsystem must never freeze the loop. Log once per error type.
@@ -144,7 +145,10 @@ const menu = new Menu(uiRoot, {
   onResume: () => resume(),
   onRestart: () => { menu.hideAll(); startRace(lastSettings); },
   onQuit: () => goToTitle(),
-  onScreen: (s) => { setState(s === 'select' ? 'select' : 'title'); },
+  onScreen: (s) => {
+    if (s === 'results') { renderResults(); return; }
+    setState(s === 'select' ? 'select' : 'title');
+  },
 });
 let input = null;
 
@@ -164,6 +168,10 @@ const urlFlags = (() => {
 let lastSettings = { characterIndex: 0, difficulty: 'normal', laps: RACE.laps, ...urlFlags };
 let introTimer = 0;
 let resultsShown = false;
+/** 本场比赛最近一次破的个人单圈记录（结算页要用它显示差值）。 */
+let lastLapPb = null;
+/** 最近一次结算数据：从结算页去建账号再回来时要重画。 */
+let lastResults = null;
 let time = 0;
 const clock = new THREE.Clock();
 const NEUTRAL = Object.freeze({ throttle: 0, brake: 0, steer: 0, drift: false, item: false, lookBack: false });
@@ -305,6 +313,7 @@ function goToTitle() {
 
 function startRace(settings) {
   lastSettings = { ...lastSettings, ...settings };
+  lastLapPb = null;
   if (demo.active) exitDemo(); // a race must never start with the demo's rotation timer still armed
   hud.hide(); hud.hideResults();
   menu.showLoading('GET READY!');
@@ -324,7 +333,10 @@ function startRace(settings) {
     resultsShown = false;
     introTimer = 0;
     seenErrors.clear();
+    // 本桶的个人最好单圈：左上角常驻显示要追的目标
+    const pb = accounts.best(world.track.id, world.night ? 'night' : 'day', world.reverse ? 'rev' : 'fwd');
     hud.reset({ player: world.player, track: world.track, laps: lastSettings.laps });
+    hud.setBest(pb ? pb.lap : null);
     hud.show();
     menu.hideAll();
     audio.setGameplayActive(true);
@@ -381,21 +393,71 @@ bus.on('race:finish', (d) => {
   const AIClass = mods.ai && mods.ai.AIDriver;
   world.playerAI = (AIClass && safe('ai.player', () => new AIClass(world.player, world.track, { difficulty: 'easy' }))) || new FallbackAI(world.player, world.track);
 });
+bus.on('race:lap', (d) => {
+  const k = d && d.kart;
+  if (!k || !k.isPlayer || !world || world.mode !== 'race') return;
+  const r = accounts.recordLap({
+    trackId: world.track.id,
+    course: world.night ? 'night' : 'day',
+    dir: world.reverse ? 'rev' : 'fwd',
+    lapTime: d.lapTime,
+    cls: lastSettings.class,
+    kart: k.character ? k.character.name : null,
+  });
+  if (r.pb) {
+    hud.setBest(d.lapTime, { fresh: true, delta: r.delta });
+    hud.popLapRecord(r.delta);
+    lastLapPb = r;
+  }
+});
 bus.on('race:end', (d) => {
   if (!world || world.mode !== 'race') return;
   resultsShown = true;
   const results = (d && d.results) || world.race.computeResults();
+  // 存档：总时间另记一条，单圈 PB 已经在 race:lap 里逐圈记过了。
+  const me = results.find((r) => r && r.isPlayer);
+  const bucket = { trackId: world.track.id, course: world.night ? 'night' : 'day', dir: world.reverse ? 'rev' : 'fwd' };
+  const raceSave = accounts.recordRace({
+    ...bucket,
+    totalTime: me ? me.time : null,
+    cls: lastSettings.class,
+    kart: me && me.character ? me.character.name : null,
+    won: !!me && me.place === 1,
+  });
+  const now = accounts.best(bucket.trackId, bucket.course, bucket.dir);
+  lastResults = {
+    results,
+    laps: world.race.laps,
+    bucket,
+    raceSave: { ...raceSave, lapPb: !!(lastLapPb && lastLapPb.pb), lapDelta: lastLapPb ? lastLapPb.delta : null },
+    personalBest: now,
+  };
   if (state === 'paused') resume();
-  setTimeout(() => {
+  setTimeout(() => safe('race:results', () => {
     if (!world || !resultsShown) return;
-    audio.playMusic('menu');
-    hud.showResults(results, {
-      laps: world.race.laps,
-      onRestart: () => startRace(lastSettings),
-      onMenu: () => goToTitle(),
-    });
-  }, 200);
+    // 音乐播不了（浏览器没解锁音频等）也不该让结算界面消失
+    try { audio.playMusic('menu'); } catch (e) { /* 无声继续 */ }
+    renderResults();
+  }), 200);
 });
+
+/** 画结算面板（也用于“从结算页去建账号再回来”的重画）。 */
+function renderResults() {
+  if (!lastResults) return;
+  const { results, laps, bucket, raceSave } = lastResults;
+  hud.showResults(results, {
+    laps,
+    board: accounts.leaderboard(bucket.trackId, bucket.course, bucket.dir, 5),
+    boardLabel: bucketLabel(`${bucket.trackId}|${bucket.course}|${bucket.dir}`, (world && world.track && world.track.baseName) || null),
+    playerName: accounts.activeLabel,
+    signedIn: !!accounts.active,
+    raceSave,
+    // 现算：从结算页去建了账号再回来时，要显示新玩家自己的 PB
+    personalBest: accounts.best(bucket.trackId, bucket.course, bucket.dir),
+    onRestart: () => startRace(lastSettings),
+    onMenu: () => goToTitle(),
+  });
+}
 
 // ---------------------------------------------------------------------------------------------
 // Attract / demo mode
@@ -497,6 +559,9 @@ window.addEventListener('pointermove', (e) => {
 // ---------------------------------------------------------------------------------------------
 window.addEventListener('keydown', (e) => {
   if (demo.active) { noteActivity(); e.preventDefault(); return; }
+  // 按键也算“有人在玩”：否则结算页上只用键盘的人会被挂机 demo 抢掉屏幕，
+  // 在玩家页输入名字时也会被抢。
+  noteActivity();
   if (e.code === 'KeyM' && !e.repeat) {
     const muted = audio.toggleMute();
     hud.toast(muted ? 'SOUND OFF' : 'SOUND ON');
@@ -504,6 +569,14 @@ window.addEventListener('keydown', (e) => {
   }
   if (e.code === 'KeyH' && !e.repeat) {
     hud.toggleControls();
+    return;
+  }
+  if (e.code === 'KeyN' && !e.repeat && (state === 'title' || state === 'select' || (state === 'finished' && resultsShown))) {
+    menu.showPlayers();
+    return;
+  }
+  if (e.code === 'KeyL' && !e.repeat && (state === 'title' || state === 'select' || (state === 'finished' && resultsShown))) {
+    menu.showBoard();
     return;
   }
   if ((e.code === 'Escape' || e.code === 'KeyP') && !e.repeat) {
@@ -703,6 +776,7 @@ window.__game = {
   get state() { return state; },
   get world() { return world; },
   get mods() { return mods; },
+  accounts,
   audio, hud, menu, renderer, camera, bus,
   startRace: (s = {}) => startRace({ ...lastSettings, ...s }),
   goToTitle,

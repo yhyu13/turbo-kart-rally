@@ -306,6 +306,120 @@ async function main() {
     await page.waitForFunction(() => !document.querySelector('.hud-controls').classList.contains('open'), null, { timeout: 30000, polling: 200 });
     const reclosed = await ctlRead();
     check(reclosed && reclosed.full === 'none', 'race HUD: H closes it again', JSON.stringify(reclosed));
+
+    // -------------------------------------------------------------------------------------------
+    // Player accounts + per-setup leaderboard. A lap PB must land in its own bucket (track × day/night
+    // × direction) and nowhere else — that is the whole point of the feature.
+    // -------------------------------------------------------------------------------------------
+    const nameOf = 'CI RACER';
+    await page.evaluate((n) => {
+      const A = window.__game.accounts;
+      for (const p of A.list().map((x) => x.name)) A.remove(p);
+      A.create(n);
+    }, nameOf);
+    const started = await page.evaluate(() => {
+      const g = window.__game;
+      g.startRace({ class: '100cc', laps: 1, night: false, reverse: false });
+      return true;
+    });
+    check(started, 'accounts: a race can be started for the PB test');
+    await page.waitForFunction(() => window.__game.state === 'racing' || window.__game.state === 'finished', null, { timeout: 300000, polling: 400 });
+    await page.waitForTimeout(600);
+    // A real lap would take minutes on the software renderer, so the lap event is emitted directly;
+    // the recording path (main.js -> accounts) and the store are what is under test here.
+    const lapState = await page.evaluate(() => {
+      const g = window.__game;
+      g.bus.emit('race:lap', { kart: g.world.player, lap: 1, lapTime: 41.62 });
+      const hud = document.querySelector('.hud-best');
+      return {
+        hudBest: (hud.textContent || '').trim(),
+        day: (g.accounts.best('campus', 'day', 'fwd') || {}).lap || null,
+        night: g.accounts.best('campus', 'night', 'fwd'),
+        rev: g.accounts.best('campus', 'day', 'rev'),
+        cls: (g.accounts.best('campus', 'day', 'fwd') || {}).cls || null,
+      };
+    });
+    check(Math.abs(lapState.day - 41.62) < 0.01 && lapState.night === null && lapState.rev === null,
+      'accounts: a lap PB lands only in its own track/course/direction bucket', JSON.stringify(lapState));
+    check(/41\.6/.test(lapState.hudBest), 'accounts: the HUD shows the personal best to chase', lapState.hudBest);
+    check(lapState.cls === '100cc', 'accounts: the record remembers the engine class', String(lapState.cls));
+
+    const improved = await page.evaluate(() => {
+      const g = window.__game;
+      g.bus.emit('race:lap', { kart: g.world.player, lap: 1, lapTime: 43.00 }); // slower
+      const afterSlower = (g.accounts.best('campus', 'day', 'fwd') || {}).lap;
+      g.bus.emit('race:lap', { kart: g.world.player, lap: 1, lapTime: 40.98 }); // faster
+      const hud = document.querySelector('.hud-best');
+      return { afterSlower, afterFaster: (g.accounts.best('campus', 'day', 'fwd') || {}).lap, hud: (hud.textContent || '').trim(), delta: hud.dataset.delta || null };
+    });
+    check(Math.abs(improved.afterSlower - 41.62) < 0.01 && Math.abs(improved.afterFaster - 40.98) < 0.01,
+      'accounts: only a faster lap replaces the PB', JSON.stringify(improved));
+    check(improved.delta === '−0.64', 'accounts: the HUD reports the improvement', String(improved.delta));
+
+    // Finish the race and look at the results panel: PB block + the board for this bucket.
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.finishPlayer();
+      if (g.world && g.world.race) g.world.race.endTimer = 0.01;
+    });
+    await page.waitForFunction(() => !!document.querySelector('.res-panel'), null, { timeout: 180000, polling: 400 });
+    const results = await page.evaluate(() => {
+      const t = (s) => { const e = document.querySelector(s); return e ? e.textContent.replace(/\s+/g, ' ').trim() : null; };
+      return { pb: t('.res-pb'), board: t('.res-board'), mine: t('.res-brow.me') };
+    });
+    check(!!results.board && /DAY · FORWARD/.test(results.board) && /CI RACER/.test(results.board),
+      'accounts: the results panel shows the board for this exact setup', results.board);
+    check(!!results.mine && /CI RACER/.test(results.mine), 'accounts: your own row is highlighted on the board', results.mine);
+
+    // A second player joins the same board (ranked by lap), and the other three setups stay empty —
+    // the day/forward board must not gain rows on any other bucket.
+    const buckets = await page.evaluate(() => {
+      const A = window.__game.accounts;
+      A.create('OTHER RACER');
+      A.select('OTHER RACER');
+      window.__game.bus.emit('race:lap', { kart: window.__game.world.player, lap: 1, lapTime: 45.5 });
+      const out = {
+        players: A.list().map((p) => p.name),
+        dayFwd: A.leaderboard('campus', 'day', 'fwd', 5).map((r) => `${r.rank}.${r.name}:${r.lap.toFixed(2)}`),
+        otherBuckets: ['night|fwd', 'day|rev', 'night|rev'].filter((k) => A.find('OTHER RACER').best['campus|' + k]),
+        ciBuckets: Object.keys(A.find('CI RACER').best),
+      };
+      A.select('CI RACER');
+      return out;
+    });
+    check(buckets.dayFwd.length === 2 && /^1\.CI RACER:40\.98$/.test(buckets.dayFwd[0]) && /^2\.OTHER RACER:45\.50$/.test(buckets.dayFwd[1]),
+      'accounts: the board ranks every player by lap time', JSON.stringify(buckets.dayFwd));
+    check(buckets.otherBuckets.length === 0 && buckets.ciBuckets.length === 1 && buckets.ciBuckets[0] === 'campus|day|fwd',
+      'accounts: neither player leaks into the other three setups', JSON.stringify(buckets));
+
+    // The two screens: N = players, L = leaderboard, and the board follows the setup toggles.
+    await page.evaluate(() => window.__game.goToTitle());
+    await page.waitForTimeout(500);
+    await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyN', bubbles: true })));
+    await page.waitForFunction(() => window.__game.menu.screen === 'players', null, { timeout: 30000, polling: 200 });
+    const playersScreen = await page.evaluate(() => ({
+      rows: document.querySelectorAll('.pl-row').length,
+      text: (document.querySelector('.pl-list').textContent || '').replace(/\s+/g, ' ').trim(),
+    }));
+    check(playersScreen.rows === 2 && /CI RACER/.test(playersScreen.text) && /OTHER RACER/.test(playersScreen.text),
+      'accounts: the players screen lists every profile on the cabinet', JSON.stringify(playersScreen));
+    await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyL', bubbles: true })));
+    await page.waitForFunction(() => window.__game.menu.screen === 'board', null, { timeout: 30000, polling: 200 });
+    const boardScreen = await page.evaluate(() => {
+      const t = (s) => { const e = document.querySelector(s); return e ? e.textContent.replace(/\s+/g, ' ').trim() : null; };
+      const before = { sub: t('.bd-sub'), rows: t('.bd-table') };
+      window.dispatchEvent(new KeyboardEvent('keydown', { code: 'ArrowDown', bubbles: true }));
+      return before;
+    });
+    await page.waitForTimeout(400);
+    const afterDirToggle = await page.evaluate(() => ({
+      sub: (document.querySelector('.bd-sub').textContent || '').replace(/\s+/g, ' ').trim(),
+      rows: (document.querySelector('.bd-table').textContent || '').replace(/\s+/g, ' ').trim(),
+    }));
+    check(/CI RACER/.test(boardScreen.rows || '') && /OTHER RACER/.test(boardScreen.rows || '') && /FORWARD/.test(boardScreen.sub || ''),
+      'accounts: the leaderboard screen shows the board for the chosen setup', JSON.stringify(boardScreen));
+    check(afterDirToggle.sub !== boardScreen.sub && /REVERSE/.test(afterDirToggle.sub) && /No times/.test(afterDirToggle.rows || ''),
+      'accounts: switching the board to REVERSE shows a different (empty) board', JSON.stringify(afterDirToggle));
   }
 
   check(pageErrors.length === 0, 'no browser console/page errors', pageErrors.slice(0, 3).join(' | '));
