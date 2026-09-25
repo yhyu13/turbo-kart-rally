@@ -10,6 +10,7 @@ import { THEME } from '../config.js';
 
 export function createWater(ctx) {
   const { root, keep, WATER, SUN_DIR, cx, cz, depthData, res, T_SIZE, smoothstep } = ctx;
+  const night = !!ctx.night;
   // ------------------------------------------------------------------ water
   const depthTex = keep(new THREE.DataTexture(depthData, res, res, THREE.RGBAFormat));
   depthTex.magFilter = THREE.LinearFilter; depthTex.minFilter = THREE.LinearFilter;
@@ -18,10 +19,10 @@ export function createWater(ctx) {
     uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, {
       uTime: { value: 0 },
       uSunDir: { value: SUN_DIR.clone() },
-      uDeep: { value: new THREE.Color(0x0e2c57) },
-      uShallow: { value: new THREE.Color(0x3e7fbd) },
-      uSky: { value: new THREE.Color(THEME.arches) },
-      uFoam: { value: new THREE.Color(0xffffff) },
+      uDeep: { value: new THREE.Color(night ? 0x050f1e : 0x0e2c57) },
+      uShallow: { value: new THREE.Color(night ? 0x14304d : 0x3e7fbd) },
+      uSky: { value: new THREE.Color(night ? 0x1b2b40 : THEME.arches) },
+      uFoam: { value: new THREE.Color(night ? 0xcfd9e6 : 0xffffff) },
       uDepth: { value: null },
       uBounds: { value: new THREE.Vector3(cx - T_SIZE / 2, cz - T_SIZE / 2, T_SIZE) },
     }]),

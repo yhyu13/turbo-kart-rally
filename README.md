@@ -15,6 +15,17 @@ This fork keeps the upstream game and its circuit layout untouched, and re-theme
 - **Campus props.** Corn rows replace the palms, the dropped banana hazard is now an ear of Illinois corn, the item box is an orange-and-blue crate carrying the campus "I", and the circuit banners read `ILLINI / KART / CLASSIC`.
 - **Mid-autumn.** A full moon hangs over the prairie, strings of orange lanterns line the opening straight, and there is a mooncake stall in the infield.
 - **Names.** The game is *Illini Kart Classic* on the *Illini Campus Circuit*.
+- **Reverse course.** The select screen's `DIRECTION` (or `?reverse=1`) drives the same circuit the
+  other way round. The control points stay authored in forward order; only the traversal order flips,
+  and every authored accent — jump ramps, boost pads, item rows, the 14 landmarks — is mapped back onto
+  the same patch of tarmac, so the campus does not move. Lap counting, the racing line, the banked
+  corners, the grid and the barriers all come out mirrored for free.
+- **Night.** The select screen's `COURSE` (or `?night=1`) swaps the whole track to a real night: deep
+  navy sky with a star field, a big full moon placed along the same direction the key light comes from,
+  moonlight shadows and fog, and **retro-reflective paint** — the kerbs, barrier panels, bridge rails,
+  ramp stripes and the lane markings baked into the asphalt all glow, so the circuit still reads from
+  the driver's seat at 2 a.m. The lantern strings, mooncake stall and full moon that were already there
+  finally make sense.
 
 Track geometry, physics, AI, items and race rules are untouched: `dev/track-test.html` reports the same `centerline mismatches 0` / `racing line offroad 0` as upstream.
 
@@ -43,7 +54,8 @@ double-click it — that single file contains the game and three.js, so it needs
 network. Otherwise open
 **https://bridge-mind.github.io/turbo-kart-rally/** in a desktop browser with WebGL2 (Chrome, Edge,
 Firefox or Safari). Click or press Enter on the title screen, choose one of eight racers, pick a
-class (50cc, 100cc or 150cc) and a lap count, then hit RACE!. A keyboard or a gamepad works.
+class (50cc, 100cc or 150cc), a lap count, a course (**day** or **night**) and a **direction**
+(forward or reverse), then hit RACE!. A keyboard or a gamepad works.
 
 Race seven AI drivers around the Illini Campus Circuit. Drift through corners and release for a mini-turbo. Grab item boxes and fire shells, drop corn, pop mushrooms, or call down lightning on the field.
 

@@ -37,8 +37,18 @@ Do **not** edit files you don't own. If you need something from another module, 
 ## 1. World — `src/track.js`
 
 ```js
-export function createTrack(scene, renderer) // -> Track (adds everything to scene: road, walls, scenery, sky, lights, fog)
+export function createTrack(scene, renderer, { reverse = false, night = false }) // -> Track
 ```
+Both flags are course variants, and both are threaded through as data rather than by branching:
+
+- `reverse` flips the traversal order of the control points (keeping CP0 at the front, so the
+  start/finish line stays at `t = 0`). Walls, kerbs, curbs, banks, the racing line, the grid and the
+  gantry all follow from the rebuilt centreline; the *authored* accents (boost pads, ramps, item rows,
+  landmarks) are mapped back with `sAt()` / `lat()` so they land on the same physical tarmac.
+- `night` is passed to the environment (sky palette, star field, moon, keys, fog) and switches the
+  track's paintwork to a retro-reflective look (an `emissiveMap` on the kerb, barrier, rail, ramp and
+  asphalt materials). Nothing branches on it at runtime.
+
 `Track` object:
 | member | type | meaning |
 |---|---|---|

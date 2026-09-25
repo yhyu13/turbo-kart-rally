@@ -86,6 +86,9 @@ export function makeLocator(L, heightAt, spot) {
   const N = L.N;
   const v = new THREE.Vector3();
   return function locate(t, side, past, { minClear = 14, sink = 0.4, foot = 0 } = {}) {
+    // Landmarks are authored on the *forward* course. On the reverse course the same patch of ground
+    // sits at arc (1 - t) and the sides swap, so the campus does not jump when the direction flips.
+    if (L.reverse) { t = 1 - t; side = -side; }
     const i = ((Math.round(((t % 1) + 1) % 1 * N)) % N + N) % N;
     const wall = side > 0 ? L.wallR[i] : L.wallL[i];
     const lat = side * (wall + past);

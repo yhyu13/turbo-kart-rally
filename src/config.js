@@ -26,6 +26,10 @@ export const THEME = {
   corn:       0xd9b545,   // #MorrowPlots, and the mooncake-warm accent
 };
 
+// Direction of the moonlight (consumers normalise it). The night sky, the key light and the moon disc
+// all read it, so shadows, the sky's glow and the moon itself agree.
+export const MOON_DIR = [0.42, 0.5, -0.76];
+
 // The same palette as CSS strings, for the CanvasTexture painters.
 export const THEME_CSS = {
   blue: '#13294b',

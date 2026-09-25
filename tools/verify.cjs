@@ -72,21 +72,66 @@ async function main() {
   });
 
   // ---------------------------------------------------------------- 1. track geometry + ground
-  console.log('track harness (dev/track-test.html)');
-  await page.goto(`${base}/dev/track-test.html`, { waitUntil: 'load' });
-  await page.waitForFunction(() => !!window.track, null, { timeout: 60000 });
-  const log = await page.textContent('#log');
-  const mismatches = /centerline mismatches (\d+) racing line offroad (\d+)/.exec(log);
-  const ground = /terrain above road (\d+) worst delta (-?[\d.]+)/.exec(log);
-  const slots = [...log.matchAll(/slot \d+ onRoad (\w+)/g)].map((m) => m[1]);
+  // Run the harness for both courses. The reverse course is the same circuit driven the other way, so
+  // every check must hold there too — and the authored accents must land on the same tarmac.
+  const probeCourse = async (query, label) => {
+    console.log(`track harness — ${label}`);
+    await page.goto(`${base}/dev/track-test.html${query}`, { waitUntil: 'load' });
+    await page.waitForFunction(() => !!window.track, null, { timeout: 90000 });
+    const log = await page.textContent('#log');
+    const mismatches = /centerline mismatches (\d+) racing line offroad (\d+)/.exec(log);
+    const ground = /terrain above road (\d+) worst delta (-?[\d.]+)/.exec(log);
+    const slots = [...log.matchAll(/slot \d+ onRoad (\w+)/g)].map((m) => m[1]);
+    check(mismatches && mismatches[1] === '0', `${label}: centerline round-trips to itself`, mismatches ? `mismatches ${mismatches[1]}` : 'not reported');
+    check(mismatches && mismatches[2] === '0', `${label}: racing line stays on the road`, mismatches ? `offroad ${mismatches[2]}` : 'not reported');
+    check(ground && ground[1] === '0', `${label}: terrain never covers the road`, ground ? `worst delta ${ground[2]} m` : 'not reported');
+    check(slots.length === 8 && slots.every((s) => s === 'true'), `${label}: all eight grid slots start on the road`, `${slots.length} slots`);
+    const detail = await page.evaluate(() => {
+      const t = window.track, T = window.THREE;
+      const centres = {};
+      for (const n of ['landmark:memorial-stadium', 'landmark:illini-union', 'landmark:morrow-plots']) {
+        const o = window.scene.getObjectByName(n);
+        if (!o) { centres[n] = null; continue; }
+        o.geometry.computeBoundingBox();
+        const c = new T.Vector3(); o.geometry.boundingBox.getCenter(c);
+        centres[n] = [+c.x.toFixed(0), +c.y.toFixed(1), +c.z.toFixed(0)];
+      }
+      return {
+        name: t.name, reverse: !!t.reverse,
+        ramps: t.jumpRamps.map((r) => +(r.t + (r.length / 2) / t.length).toFixed(4)).sort((a, b) => a - b),
+        centres,
+        calls: window.drawCalls || window.renderer.info.render.calls,
+        tris: window.tris || window.renderer.info.render.triangles,
+        landmarks: (t.landmarkNames || []).length,
+      };
+    });
+    return detail;
+  };
 
-  check(mismatches && mismatches[1] === '0', 'centerline round-trips to itself', mismatches ? `mismatches ${mismatches[1]}` : 'not reported');
-  check(mismatches && mismatches[2] === '0', 'racing line stays on the road', mismatches ? `offroad ${mismatches[2]}` : 'not reported');
-  check(ground && ground[1] === '0', 'terrain never covers the road', ground ? `worst delta ${ground[2]} m` : 'not reported');
-  check(slots.length === 8 && slots.every((s) => s === 'true'), 'all eight grid slots start on the road', `${slots.length} slots`);
-  const drawCalls = await page.evaluate(() => window.drawCalls || window.renderer.info.render.calls);
-  const tris = await page.evaluate(() => window.tris || window.renderer.info.render.triangles);
-  ok('world budget', `${drawCalls} draw calls, ${(tris / 1000).toFixed(0)}k triangles`);
+  const fwd = await probeCourse('', 'forward');
+  const rev = await probeCourse('?reverse=1', 'reverse');
+  check(!fwd.reverse && rev.reverse, 'reverse flag reaches the track builder', `${fwd.name} / ${rev.name}`);
+  // Both lists are sorted ascending, and the mirror reverses the order: fwd[i] maps to rev[n-1-i].
+  const mirrored = rev.ramps.length === fwd.ramps.length
+    && rev.ramps.every((t, i) => Math.abs(t - (1 - fwd.ramps[fwd.ramps.length - 1 - i])) < 0.004);
+  check(mirrored, 'reverse course mirrors the authored ramps (by centre)', `fwd ${fwd.ramps.join(',')} | rev ${rev.ramps.join(',')}`);
+  const sameGround = Object.keys(fwd.centres).every((k) => fwd.centres[k] && rev.centres[k]
+    && fwd.centres[k].every((v, i) => Math.abs(v - rev.centres[k][i]) < 2));
+  check(sameGround, 'landmarks stand on the same ground in both directions', JSON.stringify(rev.centres));
+  ok('world budget', `${fwd.calls} draw calls, ${(fwd.tris / 1000).toFixed(0)}k triangles, ${fwd.landmarks} landmark objects`);
+
+  // A night course must build and light without throwing; it is a separate palette, key light and fog.
+  console.log('night course');
+  await page.goto(`${base}/index.html?night=1`, { waitUntil: 'load' });
+  await page.waitForFunction(() => !!(window.__game && window.__game.world && window.__game.world.track), null, { timeout: 120000 });
+  const nightInfo = await page.evaluate(() => ({
+    night: !!window.__game.world.night,
+    errors: window.__game.errors(),
+    landmarks: (window.__game.world.track.landmarkNames || []).length,
+  }));
+  check(nightInfo.night, 'night flag reaches the world builder');
+  check(nightInfo.errors.length === 0, 'night world builds without errors', nightInfo.errors.join(' | '));
+  check(nightInfo.landmarks >= 29, 'night world still places the landmarks', `${nightInfo.landmarks} objects`);
 
   // ---------------------------------------------------------------- 2. single-file distribution
   console.log('single-file distribution (dist/illini-kart-classic.html)');

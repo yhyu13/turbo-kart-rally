@@ -1,5 +1,10 @@
 // Track (Agent 1 — World). See ARCHITECTURE.md §1 for the contract.
-// createTrack(scene, renderer) -> Track
+// createTrack(scene, renderer, { reverse }) -> Track
+//
+// `reverse` builds the circuit the other way round: the same road, driven anticlockwise. The control
+// points below are always authored in *forward* order — reversing them rebuilds every derived thing
+// (walls, kerbs, racing line, grid, ramps, banks) for the new direction, and the helpers further down
+// (at/lat) keep the authored accents on exactly the same patches of tarmac.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { bus } from './events.js';
@@ -21,7 +26,8 @@ const GRID_CELL = 40;
 // kart at full speed or on a boost leaves the ground), then a descent into the hairpin, which sits in
 // the lowest ground on the lap (-6). 40 m of range, worst grade about 22 %.
 // x/z are frozen: changing them moves corners, landmarks, the bridge and the item rows.
-const CP = [
+// This list is the *forward* course; `reverse` below flips the traversal order, not the shape.
+const CP_FWD = [
   [0, 1.5, -60],    // 0  start / finish (main straight, heading +Z)
   [0, 2.5, 60],     // 1  flat opening straight
   [2, 5, 175],      // 2  the grade starts to bite
@@ -73,7 +79,19 @@ function smoothCircular(arr, radius, passes = 1) {
   return src;
 }
 
-export function createTrack(scene, renderer) {
+export function createTrack(scene, renderer, opts = {}) {
+  const reverse = !!(opts && opts.reverse);
+  const night = !!(opts && opts.night);
+  // Same road, opposite traversal order. A plain reverse() would start the curve at the *last*
+  // control point, which moves the start/finish line to t = 1 — and the grid, the gantry and lap
+  // counting all hang off t = 0 — so rotate CP0 back to the front of the list.
+  const CP = reverse ? [CP_FWD[0], ...CP_FWD.slice(1).reverse()] : CP_FWD;
+  const dirSign = reverse ? -1 : 1;                 // sample-index step per metre travelled forward
+  // `along` is a distance in samples measured along the direction of travel; `lat` keeps a lateral
+  // offset on the same physical side of the road when the course is reversed.
+  const sAt = (sIdx, k = 0) => (((Math.round(sIdx) + dirSign * k) % N) + N) % N;
+  const lat = (l) => (reverse ? -l : l);
+  const trackName = reverse ? `${TRACK_NAME} · Reverse` : TRACK_NAME;
   const root = new THREE.Group();
   root.name = 'track';
   scene.add(root);
@@ -246,49 +264,53 @@ export function createTrack(scene, renderer) {
   const idxAtDist = (d) => ((((d / ds) % N) + N) % N);
 
   // ------------------------------------------------------------------ features
+  // Authored in *forward* CP space so a feature keeps its physical spot when the course is reversed.
   const nearestToCP = (cpf) => {
-    const i0 = Math.floor(cpf) % CP.length, i1 = (i0 + 1) % CP.length, f = cpf - Math.floor(cpf);
-    const x = (CP[i0][0] + (CP[i1][0] - CP[i0][0]) * f) * SCALE;
-    const z = (CP[i0][2] + (CP[i1][2] - CP[i0][2]) * f) * SCALE;
+    const i0 = Math.floor(cpf) % CP_FWD.length, i1 = (i0 + 1) % CP_FWD.length, f = cpf - Math.floor(cpf);
+    const x = (CP_FWD[i0][0] + (CP_FWD[i1][0] - CP_FWD[i0][0]) * f) * SCALE;
+    const z = (CP_FWD[i0][2] + (CP_FWD[i1][2] - CP_FWD[i0][2]) * f) * SCALE;
     return nearestGrid(x, z);
   };
 
   // Boost pads: s0/len in samples, lateral centre, half width
   const PAD_LEN = Math.max(3, Math.round(7 / ds));
   const boostPads = [];
-  const addPad = (sIdx, lat) => boostPads.push({ s0: ((sIdx % N) + N) % N, len: PAD_LEN, lat, hw: 2.6 });
+  const addPad = (sIdx, lateral) => boostPads.push({ s0: sIdx, len: PAD_LEN, lat: lateral, hw: 2.6 });
   const padStep = Math.round(16 / ds);
   { // cluster A — exit of the S-bend (staggered trio)
     const i = nearestToCP(10.45);
-    addPad(i, -6); addPad(i + padStep, 0); addPad(i + padStep * 2, 6);
+    addPad(sAt(i, 0), lat(-6)); addPad(sAt(i, padStep), lat(0)); addPad(sAt(i, padStep * 2), lat(6));
   }
   { // cluster B — hairpin exit (pair, then centre)
     const i = nearestToCP(20.55);
-    addPad(i, -4.5); addPad(i, 4.5); addPad(i + padStep * 2, 0);
+    addPad(sAt(i, 0), lat(-4.5)); addPad(sAt(i, 0), lat(4.5)); addPad(sAt(i, padStep * 2), lat(0));
   }
   { // cluster C — lined up before the sweeper jump
     const i = nearestToCP(4.15);
-    addPad(i, race[i]); addPad(i + padStep, race[(i + padStep) % N]);
+    addPad(sAt(i, 0), lat(race[sAt(i, 0)])); addPad(sAt(i, padStep), lat(race[sAt(i, padStep)]));
   }
   { // cluster D — the climb onto the bridge is the steepest grade on the lap; give it a hand
     const i = nearestToCP(11.15);
-    addPad(i, -5); addPad(i + padStep, 3);
+    addPad(sAt(i, 0), lat(-5)); addPad(sAt(i, padStep), lat(3));
   }
 
-  // Jump ramps
+  // Jump ramps. A ramp rises over the RAMP_LEN samples that follow its s0, so to keep the *same*
+  // physical launch pad when the course is reversed the authored point becomes its far end.
   const RAMP_LEN = Math.max(4, Math.round(9 / ds));
   const ramps = [];
-  const addRamp = (sIdx, hw = 10, h = 1.7) => ramps.push({ s0: ((sIdx % N) + N) % N, len: RAMP_LEN, hw, h });
-  addRamp(nearestToCP(14.35));                // downhill after the bridge
-  addRamp(nearestToCP(4.65), 9, 1.5);         // top of the big sweeper
-  addRamp(nearestToCP(6.55), 10, 1.9);        // over the summit crest — you leave the ground here
+  const addRamp = (sIdx, hw = 10, h = 1.7) => ramps.push({ s0: sIdx, len: RAMP_LEN, hw, h });
+  const addRampAt = (sIdx, hw = 10, h = 1.7) => addRamp(reverse ? sAt(sIdx, RAMP_LEN) : sAt(sIdx, 0), hw, h);
+  addRampAt(nearestToCP(14.35));              // downhill after the bridge
+  addRampAt(nearestToCP(4.65), 9, 1.5);       // top of the big sweeper
+  addRampAt(nearestToCP(6.55), 10, 1.9);      // over the summit crest — you leave the ground here
 
-  // Item box rows
+  // Item box rows (lateral offsets are symmetric, so they only need the direction flip)
   const itemBoxPositions = [];
   const itemRowIdx = [1.25, 6.5, 9.2, 12.5, 16.4, 21.6].map(nearestToCP);
   for (const i of itemRowIdx) {
-    for (const lat of [-8, -4, 0, 4, 8]) {
-      itemBoxPositions.push(new THREE.Vector3(px[i] + rx[i] * lat, py[i] + 1.4 + bankDy(i, lat), pz[i] + rz[i] * lat));
+    for (const lateral of [-8, -4, 0, 4, 8]) {
+      const l = lat(lateral);
+      itemBoxPositions.push(new THREE.Vector3(px[i] + rx[i] * l, py[i] + 1.4 + bankDy(i, l), pz[i] + rz[i] * l));
     }
   }
 
@@ -447,11 +469,24 @@ export function createTrack(scene, renderer) {
 
   // ------------------------------------------------------------------ road surface
   const asphaltTex = TX.makeAsphaltTexture();
-  const roadMat = mat(new THREE.MeshStandardMaterial({ map: asphaltTex, roughness: 0.88, metalness: 0.0 }));
+  const curbTex = TX.makeCurbTexture();
+  const grassTex = TX.makeGrassTexture();
+  const concreteTex = TX.makeConcreteTexture();
+  // At night the track's paintwork glows the way retro-reflective paint does — kerbs, barrier panels,
+  // bridge rails and the lane markings baked into the asphalt texture. The asphalt itself stays dark,
+  // which is what makes the glowing edges read as a racing line at 2 a.m.
+  const nightGlow = (m, map, intensity, color = 0xffffff) => {
+    if (!night) return m;
+    m.emissive = new THREE.Color(color);
+    m.emissiveIntensity = intensity;
+    if (map) m.emissiveMap = map;
+    return m;
+  };
+  const roadMat = mat(nightGlow(new THREE.MeshStandardMaterial({ map: asphaltTex, roughness: 0.88, metalness: 0.0 }), asphaltTex, 0.16));
   addMesh(extrude(0, N, (i) => [[-HALF_W, bankDy(i, -HALF_W)], [0, 0], [HALF_W, bankDy(i, HALF_W)]], { across: [0, 0.5, 1], alongScale: 22, step: 1 }), roadMat, { name: 'road' });
 
   // Curbs through corners (raised red/white rumble strips)
-  const curbMat = mat(new THREE.MeshStandardMaterial({ map: TX.makeCurbTexture(), roughness: 0.6 }));
+  const curbMat = mat(nightGlow(new THREE.MeshStandardMaterial({ map: curbTex, roughness: 0.6 }), curbTex, 0.55));
   const curbMask = new Uint8Array(N);
   for (let i = 0; i < N; i++) if (Math.abs(kS[i]) > 1 / 240 && bridge[i] < 0.2) {
     for (let k = -30; k <= 30; k++) curbMask[(i + k + N) % N] = 1;
@@ -466,9 +501,9 @@ export function createTrack(scene, renderer) {
   curbGeos.forEach((g) => g.dispose());
 
   // Offroad bands (grass) + bridge deck edge (concrete)
-  const grassMat = mat(new THREE.MeshStandardMaterial({ map: TX.makeGrassTexture(), roughness: 1 }));
+  const grassMat = mat(new THREE.MeshStandardMaterial({ map: grassTex, roughness: 1 }));
   grassMat.map.repeat.set(1, 1);
-  const concreteMat = mat(new THREE.MeshStandardMaterial({ map: TX.makeConcreteTexture(), roughness: 0.9 }));
+  const concreteMat = mat(new THREE.MeshStandardMaterial({ map: concreteTex, roughness: 0.9 }));
   const bandGeos = [], deckGeos = [];
   for (const [a, b] of runs((i) => bridge[i] < 0.5, 5)) {
     bandGeos.push(extrude(a, b, (i) => [[HALF_W - 0.2, -0.03 + bankDy(i, HALF_W - 0.2)], [wallR[i] + 0.35, -0.03 + bankDy(i, wallR[i] + 0.35)]], { acrossScale: 6, alongScale: 6 }));
@@ -502,9 +537,9 @@ export function createTrack(scene, renderer) {
   const typeR = barrierType(1), typeL = barrierType(-1);
 
   const wallTex = TX.makeBarrierTexture();
-  const wallMat = mat(new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.55 }));
-  const wallTopMat = mat(new THREE.MeshStandardMaterial({ color: THEME.white, roughness: 0.5 }));
-  const railMat = mat(new THREE.MeshStandardMaterial({ map: TX.makeRailTexture(), roughness: 0.45 }));
+  const wallMat = mat(nightGlow(new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.55 }), wallTex, 0.4));
+  const wallTopMat = mat(nightGlow(new THREE.MeshStandardMaterial({ color: THEME.white, roughness: 0.5 }), null, 0.3));
+  const railMat = mat(nightGlow(new THREE.MeshStandardMaterial({ map: TX.makeRailTexture(), roughness: 0.45 }), null, 0.35));
   const WALL_H = 1.25, WALL_T = 0.7, TEX_LEN = 9.6;
   const vMap = (y) => (y + 0.05) / (WALL_H + 0.05);
   const wallFaces = [], wallTops = [], railFaces = [];
@@ -533,8 +568,7 @@ export function createTrack(scene, renderer) {
     railMat.map.repeat.set(1 / 2.5, 1);
     addMesh(mergeGeometries(railFaces), railMat, { cast: true, name: 'rails' });
   }
-  if (wallTops.length) addMesh(mergeGeometries(wallTops), wallTopMat, { cast: false, name: 'wallTops' });
-  [...wallFaces, ...railFaces, ...wallTops].forEach((g) => g.dispose());
+  if (wallTops.length) addMesh(mergeGeometries(wallTops), wallTopMat, { cast: false, name: 'wallTops' });  [...wallFaces, ...railFaces, ...wallTops].forEach((g) => g.dispose());
 
   // Tire stacks (instanced) — inner face sits exactly on the collision line.
   {
@@ -615,7 +649,8 @@ export function createTrack(scene, renderer) {
     geos.forEach((g) => g.dispose());
   }
   {
-    const rampMat = mat(new THREE.MeshStandardMaterial({ map: TX.makeRampTexture(), roughness: 0.5, side: THREE.DoubleSide }));
+    const rampTex = TX.makeRampTexture();
+    const rampMat = mat(nightGlow(new THREE.MeshStandardMaterial({ map: rampTex, roughness: 0.5, side: THREE.DoubleSide }), rampTex, 0.4));
     const sideMat = mat(new THREE.MeshStandardMaterial({ color: THEME.amber, roughness: 0.6, side: THREE.DoubleSide }));
     const tops = [], sides = [];
     for (const r of ramps) {
@@ -632,7 +667,7 @@ export function createTrack(scene, renderer) {
   }
 
   // ------------------------------------------------------------------ start line, grid, gantry
-  const decalMat = (opts) => mat(new THREE.MeshStandardMaterial({ roughness: 0.7, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, ...opts }));
+  const decalMat = (opts) => mat(nightGlow(new THREE.MeshStandardMaterial({ roughness: 0.7, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, ...opts }), opts && opts.map, 0.35));
   {
     const chk = TX.makeCheckerTexture(12, 2);
     const w = Math.max(2, Math.round(1.5 / ds));
@@ -724,6 +759,7 @@ export function createTrack(scene, renderer) {
   // ------------------------------------------------------------------ environment
   const layout = {
     N, ds, length, px, py, pz, rx, rz, tx, tz, head, kS, wallL, wallR, bridge, halfWidth: HALF_W,
+    reverse, night,
     nearest: (x, z, noFallback = false) => { const i = nearestGrid(x, z, noFallback); return { i, d2: _nd2 }; },
     // Road surface height at a sample + lateral offset (grade + camber): lets the terrain builder
     // guarantee that ground never pokes through the tarmac.
@@ -736,7 +772,8 @@ export function createTrack(scene, renderer) {
 
   // ------------------------------------------------------------------ Track object
   Object.assign(track, {
-    name: TRACK_NAME,
+    name: trackName,
+    reverse,
     curve,
     length,
     roadWidth: HALF_W * 2,

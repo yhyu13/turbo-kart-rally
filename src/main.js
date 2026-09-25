@@ -147,7 +147,14 @@ let input = null;
 let state = 'boot';
 let prevState = null;
 let world = null;
-let lastSettings = { characterIndex: 0, difficulty: 'normal', laps: RACE.laps };
+// Course variants can be forced from the URL for hosting / testing: ?night=1&reverse=1
+const urlFlags = (() => {
+  try {
+    const q = new URLSearchParams(location.search);
+    return { night: q.has('night'), reverse: q.has('reverse') };
+  } catch (e) { return { night: false, reverse: false }; }
+})();
+let lastSettings = { characterIndex: 0, difficulty: 'normal', laps: RACE.laps, ...urlFlags };
 let introTimer = 0;
 let resultsShown = false;
 let time = 0;
@@ -168,11 +175,11 @@ const RACE_STATES = new Set(['intro', 'countdown', 'racing', 'finished']);
 // ---------------------------------------------------------------------------------------------
 function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; }
 
-function buildWorld({ mode, characterIndex = 0, difficulty = 'normal', laps = RACE.laps }) {
+function buildWorld({ mode, characterIndex = 0, difficulty = 'normal', laps = RACE.laps, night = false, reverse = false }) {
   if (!mods.track || !mods.track.createTrack) throw new Error('track.js unavailable');
   if (!mods.kart || !mods.kart.Kart) throw new Error('kart.js unavailable');
-  const w = { mode, difficulty, laps, karts: [], ais: [], playerAI: null, player: null, scene: new THREE.Scene() };
-  w.track = mods.track.createTrack(w.scene, renderer);
+  const w = { mode, difficulty, laps, night, reverse, karts: [], ais: [], playerAI: null, player: null, scene: new THREE.Scene() };
+  w.track = mods.track.createTrack(w.scene, renderer, { night, reverse });
 
   // roster: attract mode = every character in order (kart index == character index)
   let chars;
@@ -261,7 +268,7 @@ function disposeWorld() {
 function buildAttract() {
   disposeWorld();
   try {
-    world = buildWorld({ mode: 'attract' });
+    world = buildWorld({ mode: 'attract', night: lastSettings.night, reverse: lastSettings.reverse });
     world.race.startImmediately();
     // stagger: let them drive for a few seconds instantly so the title shows a spread-out pack
     attractCam.targetIndex = 0; attractCam.switchT = 0;

@@ -40,6 +40,7 @@ export function createEnvironment(scene, renderer, root, L) {
   // waterMat, cloudGroup, boats, …) so later builders and the API below can read it.
   const ctx = {
     scene, renderer, root, keep, uniforms, L, THEME, WATER, SUN_DIR, COL, cx, cz, ISLAND_R,
+    night: !!L.night, reverse: !!L.reverse,
     hash, vnoise, fbm, mulberry, smoothstep, lerp, paint, stripUV,
     standZones: [],
   };

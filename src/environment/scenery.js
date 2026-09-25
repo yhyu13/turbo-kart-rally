@@ -11,6 +11,7 @@ import { THEME } from '../config.js';
 
 export function createScenery(ctx) {
   const { root, keep, cx, cz, WATER, ISLAND_R, COL, natural, fbm, paint, stripUV, mulberry, lerp, L } = ctx;
+  const night = !!ctx.night;
   // ------------------------------------------------------------------ prairie horizon (distant, own haze)
   // Illinois has no mountains: this is a flat, wide landform band with cornfield striping.
   {
@@ -74,7 +75,9 @@ export function createScenery(ctx) {
     }
     const cg = keep(mergeGeometries(parts));
     parts.forEach((g) => g.dispose());
-    const cm = keep(new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x9aa8bb, flatShading: true, fog: false }));
+    const cm = keep(new THREE.MeshLambertMaterial({
+      color: night ? 0x39465c : 0xffffff, emissive: night ? 0x141b28 : 0x9aa8bb, flatShading: true, fog: false,
+    }));
     const COUNT = 34;
     const im = new THREE.InstancedMesh(cg, cm, COUNT);
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();

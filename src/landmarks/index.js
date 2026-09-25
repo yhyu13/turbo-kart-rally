@@ -6,7 +6,7 @@
 // coordinates, so it follows the circuit if the track's control points change.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { THEME as T, THEME_CSS as CSS } from '../config.js';
+import { THEME as T, THEME_CSS as CSS, MOON_DIR } from '../config.js';
 import { box, cyl, sph, at, Field, textTexture, makeLocator } from './toolkit.js';
 import { memorialStadium, assemblyHall, illiniUnion, almaMater, altgeldHall, foellinger, siebelCenter, morrowPlots, prairieTown, makeTurbineRotor } from './campus.js';
 
@@ -238,34 +238,44 @@ export function createLandmarks({ root, keep, L, spot, heightAt }) {
     }
   }
 
-  // mid-autumn: a full moon over the prairie, never mind that it is a midday lap
+  // mid-autumn: a full moon. On the night course it is the anchor of the sky and sits along MOON_DIR,
+  // the same direction the key light comes from; in daylight it stays a faint high moon over the
+  // prairie, because the lanterns and the mooncake stall belong to a festival that is mostly daytime.
   {
-    const moonPos = new THREE.Vector3(L.bounds.minX - 900, 470, L.bounds.maxZ + 620);
+    const night = !!L.night;
+    const cx0 = (L.bounds.minX + L.bounds.maxX) / 2, cz0 = (L.bounds.minZ + L.bounds.maxZ) / 2;
+    const moonPos = night
+      ? new THREE.Vector3(cx0, 0, cz0).addScaledVector(new THREE.Vector3(...MOON_DIR).normalize(), 1400)
+      : new THREE.Vector3(L.bounds.minX - 900, 470, L.bounds.maxZ + 620);
+    const moonLook = night ? new THREE.Vector3(cx0, 0, cz0) : new THREE.Vector3(0, 60, 0);
+    const R = night ? 105 : 60;
     const mkMoon = (color, radius, opacity) => {
       const geo = new THREE.CircleGeometry(radius, 48);
       const mat = new THREE.MeshBasicMaterial({ color, transparent: opacity < 1, opacity, fog: false, depthWrite: false, toneMapped: false });
       const mesh = new THREE.Mesh(geo, mat);
       mesh.position.copy(moonPos);
       mesh.renderOrder = -900;
-      mesh.lookAt(0, 60, 0);
+      mesh.lookAt(moonLook);
       root.add(mesh);
       meshes.push(mesh);
       keep(geo); keep(mat);
       return mesh;
     };
-    mkMoon(0xfff0d2, 60, 1);
-    mkMoon(0xffd9a0, 78, 0.16);
-    mkMoon(0xffe8c4, 96, 0.08);
+    mkMoon(night ? 0xf4f7ff : 0xfff0d2, R, 1);
+    mkMoon(night ? 0x9fb6d8 : 0xffd9a0, R * 1.3, night ? 0.22 : 0.16);
+    mkMoon(night ? 0x7f96b8 : 0xffe8c4, R * 1.7, night ? 0.12 : 0.08);
     const mareGeo = new THREE.CircleGeometry(1, 16);
-    const mareMat = new THREE.MeshBasicMaterial({ color: 0xe8d6b4, fog: false, depthWrite: false, toneMapped: false });
+    const mareMat = new THREE.MeshBasicMaterial({ color: night ? 0xb9c6db : 0xe8d6b4, fog: false, depthWrite: false, toneMapped: false });
+    if (night) { mareMat.transparent = true; mareMat.opacity = 0.55; }
     keep(mareGeo); keep(mareMat);
+    const mareScale = R / 60;
     for (const [dx, dy, s] of [[-14, 12, 12], [10, -6, 16], [-4, -18, 9], [18, 20, 7]]) {
       const m = new THREE.Mesh(mareGeo, mareMat);
       m.position.copy(moonPos);
       m.translateZ(-1);
-      m.translateX(dx); m.translateY(dy);
-      m.scale.setScalar(s);
-      m.lookAt(0, 60, 0);
+      m.translateX(dx * mareScale); m.translateY(dy * mareScale);
+      m.scale.setScalar(s * mareScale);
+      m.lookAt(moonLook);
       m.renderOrder = -899;
       root.add(m);
       meshes.push(m);
