@@ -272,10 +272,12 @@ function disposeWorld() {
 // ---------------------------------------------------------------------------------------------
 // Flow
 // ---------------------------------------------------------------------------------------------
-function buildAttract() {
+// `variant` is { night, reverse }; the title screen and the menus use the player's own choice, while
+// the demo rotates through all four setups so a cabinet at an event shows everything it can do.
+function buildAttract(variant = { night: !!lastSettings.night, reverse: !!lastSettings.reverse }) {
   disposeWorld();
   try {
-    world = buildWorld({ mode: 'attract', night: lastSettings.night, reverse: lastSettings.reverse });
+    world = buildWorld({ mode: 'attract', night: !!variant.night, reverse: !!variant.reverse });
     world.race.startImmediately();
     // stagger: let them drive for a few seconds instantly so the title shows a spread-out pack
     attractCam.targetIndex = 0; attractCam.switchT = 0;
@@ -403,8 +405,39 @@ bus.on('race:end', (d) => {
 // the arcade behaviour: the cabinet plays for you until you touch it.
 // ---------------------------------------------------------------------------------------------
 const DEMO_IDLE = 15;                 // seconds of no input before the demo takes over
-const demo = { active: false, idle: 0, returnScreen: 'title', returnState: 'title' };
-const IDLE_STATES = new Set(['title', 'select']);
+const DEMO_ROTATE = 32;               // seconds per setup before the demo switches to the next
+// Day/forward → night/forward → night/reverse → day/reverse: consecutive setups differ in both axes,
+// so a viewer sees the whole matrix within a couple of minutes.
+const DEMO_VARIANTS = [
+  { night: false, reverse: false },
+  { night: true, reverse: false },
+  { night: true, reverse: true },
+  { night: false, reverse: true },
+];
+const demo = { active: false, idle: 0, returnScreen: 'title', returnState: 'title', variantIndex: 0, rotateT: DEMO_ROTATE };
+
+function demoVariantLabel(v) {
+  return `${v.night ? 'NIGHT' : 'DAY'} · ${v.reverse ? 'REVERSE' : 'FORWARD'}`;
+}
+
+function setDemoHint(v) {
+  const el = document.getElementById('demo-hint');
+  if (el) el.textContent = `DEMO · ${demoVariantLabel(v)} — PRESS ANY KEY`;
+}
+
+/** The demo starts on the setup the player is *not* looking at, so idling always shows something new. */
+function demoStartIndex() {
+  const cur = DEMO_VARIANTS.findIndex((v) => v.night === !!lastSettings.night && v.reverse === !!lastSettings.reverse);
+  return cur < 0 ? 0 : (cur + 1) % DEMO_VARIANTS.length;
+}
+
+function rotateDemo() {
+  demo.variantIndex = (demo.variantIndex + 1) % DEMO_VARIANTS.length;
+  const v = DEMO_VARIANTS[demo.variantIndex];
+  buildAttract(v);
+  setDemoHint(v);
+  demo.rotateT = DEMO_ROTATE;
+}
 
 function enterDemo() {
   if (demo.active) return;
@@ -414,8 +447,13 @@ function enterDemo() {
   demo.returnState = state;
   menu.hideAll();
   hud.hide(); hud.hideResults();
-  if (!world || world.mode !== 'attract') buildAttract();          // fresh grid of AI karts
+  demo.variantIndex = demoStartIndex();
+  demo.rotateT = DEMO_ROTATE;
+  const v = DEMO_VARIANTS[demo.variantIndex];
+  // Always a fresh grid of AI karts on the new setup — that is the whole point of the demo.
+  if (!world || world.mode !== 'attract' || !!world.night !== v.night || !!world.reverse !== v.reverse) buildAttract(v);
   else { world.race.startImmediately(); attractCam.targetIndex = 0; attractCam.switchT = 5; }
+  setDemoHint(v);
   document.body.dataset.demo = '1';
   audio.playMusic('menu');
 }
@@ -588,6 +626,8 @@ function frame() {
   // Idle on a menu → demo. A gamepad cannot reach the menu while it is hidden, so poll the pad while
   // the demo runs; keys, pointer and wheel are handled by their own listeners.
   if (demo.active) {
+    demo.rotateT -= dt;
+    if (demo.rotateT <= 0) rotateDemo();
     // Gamepad only. Polling the *keyboard*'s held state here would break the demo whenever a keyup is
     // missed (switching windows while a key is down is the classic case) — keys arrive as events
     // instead, so they cannot go stale.

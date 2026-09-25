@@ -28,9 +28,13 @@ This fork keeps the upstream game and its circuit layout untouched, and re-theme
   finally make sense.
 - **Attract demo.** Leave any menu alone for 15 seconds and the cabinet plays for you: full screen, a
   fresh field of AI karts from the grid, the camera drifting between the leaders, and a
-  `DEMO · PRESS ANY KEY` pill at the bottom. Any key, click, wheel turn or gamepad press hands control
-  straight back to the screen you were on. (The title screen has always run a live race behind the
-  logo; this is that demo taking over the whole screen.)
+  `DEMO · <setup> — PRESS ANY KEY` pill at the bottom. Any key, click, wheel turn or gamepad press
+  hands control straight back to the screen you were on. (The title screen has always run a live race
+  behind the logo; this is that demo taking over the whole screen.)
+- **The demo showcases every setup.** It starts on the one you are *not* looking at and then rotates
+  every 32 seconds: day/forward → night/forward → night/reverse → day/reverse, rebuilding the circuit
+  each time and naming the current setup in the hint. A cabinet left alone for a couple of minutes
+  shows the whole matrix.
 
 Track geometry, physics, AI, items and race rules are untouched: `dev/track-test.html` reports the same `centerline mismatches 0` / `racing line offroad 0` as upstream.
 

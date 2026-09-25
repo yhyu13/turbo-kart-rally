@@ -187,6 +187,26 @@ async function main() {
   check(demoState.worldMode === 'attract', 'demo runs the attract race', `mode ${demoState.worldMode}`);
   check(demoState.karts === 8, 'demo has a full field of karts', `${demoState.karts} karts`);
   check(Number(demoState.hint) > 0.5, 'demo shows the press-any-key hint', `opacity ${demoState.hint}`);
+
+  // The demo must walk through the setups (day/night × forward/reverse), otherwise a cabinet only ever
+  // shows one of them. Forcing rotateT keeps the check fast.
+  const setups = [];
+  for (let k = 0; k < 2; k++) {
+    await page.evaluate(() => { window.__game.demo.rotateT = 0.2; });
+    await page.waitForFunction(() => window.__game.demo.rotateT > 5, null, { timeout: 90000, polling: 300 });
+    await page.waitForTimeout(1500);
+    setups.push(await page.evaluate(() => ({
+      night: !!window.__game.world.night,
+      reverse: !!window.__game.world.reverse,
+      mode: window.__game.world.mode,
+      hint: (document.getElementById('demo-hint').textContent || '').trim(),
+      karts: window.__game.world.karts.length,
+      errors: window.__game.errors().length,
+    })));
+  }
+  check(setups.every((s) => s.mode === 'attract' && s.karts === 8 && s.errors === 0), 'demo rebuilds a full field on each rotation', JSON.stringify(setups.map((s) => s.hint)));
+  check(new Set(setups.map((s) => `${s.night}/${s.reverse}`)).size === setups.length, 'demo rotates to a different setup each time', setups.map((s) => s.hint).join(' | '));
+  check(setups.every((s) => /DEMO · (DAY|NIGHT) · (FORWARD|REVERSE) — PRESS ANY KEY/.test(s.hint)), 'demo hint names the current setup', setups[0].hint);
   await page.evaluate(() => document.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', key: ' ', bubbles: true })));
   await page.waitForFunction(() => document.body.dataset.demo !== '1', null, { timeout: 30000, polling: 200 });
   const afterDemo = await page.evaluate(() => ({ state: window.__game.state, screen: window.__game.menu.screen }));

@@ -428,3 +428,14 @@ const lat  = (l) => (reverse ? -l : l);
 ### 16.5 验证
 
 浏览器实测：标题闲置 ~15 s → `body[data-demo=1]`、菜单隐藏、提示条 opacity 1、世界为 attract；按任意键 → 立刻回标题。选人页闲置 → demo 接管 → 点击 → **回选人页**（不是标题）。比完赛（结算表 8 行）→ demo 接管时结算表被收走、重建 attract 世界、8 台车均在跑（36–41 m/s）、无报错。CI 里已验证。
+
+### 16.6 轮换展示（用户追加需求）
+
+“demo 需要能自动轮换到夜间或者反向，展示我们不同的 setup”。实现：
+
+- `DEMO_VARIANTS = [白天正向, 夜晚正向, 夜晚反向, 白天反向]`，相邻两套在**两个轴上都不一样**，所以看两眼就能分辨；
+- **入口选“玩家没在看的那一套”**（`demoStartIndex()`）：刚玩完白天正向的人一闲置就立刻看到夜晚正向；
+- `DEMO_ROTATE = 32 s` 一轮，到点 `rotateDemo()`：重建 attract 世界 + 更新提示条文案（`DEMO · NIGHT · REVERSE — PRESS ANY KEY`） + 重置计时；
+- 每次重建都是 8 台车从发车格开始（`buildAttract(variant)` 现在接受变体参数；标题/菜单仍用玩家自己选的那套）。
+
+实测四套循环：`NIGHT·FORWARD → NIGHT·REVERSE → DAY·REVERSE → DAY·FORWARD → 回到起点`，每套 `mode=attract`、8 台车全部在跑、四次重建无任何报错。CI 新增两条断言（每次轮换换到不同 setup、提示条正确报出当前 setup）。
