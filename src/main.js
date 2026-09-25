@@ -74,7 +74,14 @@ async function loadModules() {
     items: './items.js', effects: './effects.js', models: './models.js', camera: './camera.js',
   };
   await Promise.all(Object.entries(specs).map(async ([k, p]) => {
-    try { mods[k] = await import(p); } catch (e) { console.error(`[main] failed to load ${p}`, e); }
+    // Two attempts: a single hiccup (venue WiFi, a CDN blip) used to leave that module missing for the
+    // rest of the session, which shows up as a blank world and "track.js unavailable".
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try { mods[k] = await import(p); return; } catch (e) {
+        if (attempt === 0) { await new Promise((r) => setTimeout(r, 250)); continue; }
+        console.error(`[main] failed to load ${p}`, e);
+      }
+    }
   }));
 }
 
@@ -388,9 +395,69 @@ bus.on('race:end', (d) => {
 });
 
 // ---------------------------------------------------------------------------------------------
+// Attract / demo mode
+//
+// Leave any menu alone for DEMO_IDLE seconds and the game demos itself: full screen, a fresh field
+// of AI karts from the grid, the attract camera drifting between the leaders. Any input — key,
+// pointer, wheel or gamepad — hands control straight back to the screen the player was on. This is
+// the arcade behaviour: the cabinet plays for you until you touch it.
+// ---------------------------------------------------------------------------------------------
+const DEMO_IDLE = 15;                 // seconds of no input before the demo takes over
+const demo = { active: false, idle: 0, returnScreen: 'title', returnState: 'title' };
+const IDLE_STATES = new Set(['title', 'select']);
+
+function enterDemo() {
+  if (demo.active) return;
+  demo.active = true;
+  demo.idle = 0;
+  demo.returnScreen = menu.screen || 'title';
+  demo.returnState = state;
+  menu.hideAll();
+  hud.hide(); hud.hideResults();
+  if (!world || world.mode !== 'attract') buildAttract();          // fresh grid of AI karts
+  else { world.race.startImmediately(); attractCam.targetIndex = 0; attractCam.switchT = 5; }
+  document.body.dataset.demo = '1';
+  audio.playMusic('menu');
+}
+
+function exitDemo() {
+  if (!demo.active) return;
+  demo.active = false;
+  demo.idle = 0;
+  delete document.body.dataset.demo;
+  if (demo.returnScreen === 'select' && !resultsShown) { menu.showSelect(); setState('select'); }
+  else { menu.showTitle(); setState('title'); }
+  bus.emit('ui:back');
+}
+
+/** Anything the player does resets the idle timer, and cancels a running demo. */
+function noteActivity() {
+  demo.idle = 0;
+  if (demo.active) exitDemo();
+}
+
+// Pointer / wheel / touch. Mouse movement only counts once it is a real move, so a cursor nudged by
+// something else does not cut the demo short.
+let lastPointer = null;
+window.addEventListener('pointerdown', noteActivity);
+window.addEventListener('touchstart', noteActivity, { passive: true });
+window.addEventListener('wheel', noteActivity, { passive: true });
+window.addEventListener('pointermove', (e) => {
+  if (lastPointer) {
+    const d = Math.hypot(e.clientX - lastPointer.x, e.clientY - lastPointer.y);
+    if (d > 6) noteActivity();
+  }
+  lastPointer = { x: e.clientX, y: e.clientY };
+}, { passive: true });
+// Note: the menu's ui:* events are deliberately *not* wired in here. They fire on stick drift, which
+// would reset the idle timer forever on a real cabinet; the pad is polled in frame() with real
+// thresholds instead, and keys/pointer have their own listeners.
+
+// ---------------------------------------------------------------------------------------------
 // Keyboard (global)
 // ---------------------------------------------------------------------------------------------
 window.addEventListener('keydown', (e) => {
+  if (demo.active) { noteActivity(); e.preventDefault(); return; }
   if (e.code === 'KeyM' && !e.repeat) {
     const muted = audio.toggleMute();
     hud.toast(muted ? 'SOUND OFF' : 'SOUND ON');
@@ -518,6 +585,26 @@ function frame() {
   const dt = Math.min(rawDt, 1 / 30);
   safe('menu.update', () => menu.update(rawDt, resultsShown ? 'results' : state));
 
+  // Idle on a menu → demo. A gamepad cannot reach the menu while it is hidden, so poll the pad while
+  // the demo runs; keys, pointer and wheel are handled by their own listeners.
+  if (demo.active) {
+    // Gamepad only. Polling the *keyboard*'s held state here would break the demo whenever a keyup is
+    // missed (switching windows while a key is down is the classic case) — keys arrive as events
+    // instead, so they cannot go stale.
+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    for (const pad of pads) {
+      if (!pad) continue;
+      if (pad.buttons && pad.buttons.some((b) => b && b.pressed)) { noteActivity(); break; }
+      const ax = pad.axes && pad.axes[0], ay = pad.axes && pad.axes[1];
+      if (Math.abs(ax || 0) > 0.4 || Math.abs(ay || 0) > 0.4) { noteActivity(); break; }
+    }
+  } else if (state === 'title' || state === 'select' || (state === 'finished' && resultsShown)) {
+    demo.idle += dt;
+    if (demo.idle >= DEMO_IDLE) enterDemo();
+  } else {
+    demo.idle = 0;
+  }
+
   const w = world;
   if (w) {
     const running = state !== 'paused' && state !== 'loading' && state !== 'boot';
@@ -589,4 +676,5 @@ window.__game = {
   },
   PHYSICS,
   debug,
+  demo,
 };

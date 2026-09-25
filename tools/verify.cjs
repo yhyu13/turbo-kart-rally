@@ -162,7 +162,37 @@ async function main() {
     check(state === 'select' && after !== before, `select screen: clicking ${name} cycles it, does not start`, `${before} -> ${after}, state ${state}`);
   }
 
-  // ---------------------------------------------------------------- 3. single-file distribution
+  // ---------------------------------------------------------------- 3. attract / demo mode
+  // Idle a menu and the cabinet plays for you; any input hands control back. The idle timer is forced
+  // instead of waiting 15 s.
+  console.log('attract demo');
+  await page.evaluate(async () => {
+    const g = window.__game;
+    g.goToTitle();
+    await new Promise((r) => setTimeout(r, 300));
+    const t = document.querySelector('.title-screen');
+    if (t) t.click();
+    await new Promise((r) => setTimeout(r, 400));
+    if (g.demo) g.demo.idle = 20;
+  });
+  await page.waitForFunction(() => document.body.dataset.demo === '1', null, { timeout: 90000, polling: 300 });
+  await page.waitForTimeout(1500);
+  const demoState = await page.evaluate(() => ({
+    screen: window.__game.menu.screen,
+    worldMode: window.__game.world && window.__game.world.mode,
+    karts: window.__game.world ? window.__game.world.karts.length : 0,
+    hint: getComputedStyle(document.getElementById('demo-hint')).opacity,
+  }));
+  check(demoState.screen === null, 'demo hides the menu');
+  check(demoState.worldMode === 'attract', 'demo runs the attract race', `mode ${demoState.worldMode}`);
+  check(demoState.karts === 8, 'demo has a full field of karts', `${demoState.karts} karts`);
+  check(Number(demoState.hint) > 0.5, 'demo shows the press-any-key hint', `opacity ${demoState.hint}`);
+  await page.evaluate(() => document.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', key: ' ', bubbles: true })));
+  await page.waitForFunction(() => document.body.dataset.demo !== '1', null, { timeout: 30000, polling: 200 });
+  const afterDemo = await page.evaluate(() => ({ state: window.__game.state, screen: window.__game.menu.screen }));
+  check(afterDemo.screen === 'title' || afterDemo.screen === 'select', 'any key exits the demo back to a menu', JSON.stringify(afterDemo));
+
+  // ---------------------------------------------------------------- 4. single-file distribution
   console.log('single-file distribution (dist/illini-kart-classic.html)');
   if (!fs.existsSync(DIST)) {
     fail('dist exists', 'run `bun tools/build-dist.cjs` first');
@@ -210,6 +240,20 @@ async function main() {
     check(race.karts === 8, 'dist runs a race with eight karts');
     check(race.maxSpeed > 12, 'dist karts actually drive', `${race.maxSpeed.toFixed(1)} m/s`);
     check(race.errors.length === 0, 'dist race produced no runtime errors', race.errors.join(' | '));
+
+    // The attract demo must work in the single-file build too: it hands the cabinet a field of AI
+    // karts to watch, which is the whole point of handing someone one .html file.
+    await page.evaluate(() => { window.__game.goToTitle(); });
+    await page.waitForTimeout(500);
+    await page.evaluate(() => { window.__game.demo.idle = 20; });
+    await page.waitForFunction(() => document.body.dataset.demo === '1', null, { timeout: 120000, polling: 400 });
+    const distDemo = await page.evaluate(() => ({
+      mode: window.__game.world && window.__game.world.mode,
+      screen: window.__game.menu.screen,
+      karts: window.__game.world ? window.__game.world.karts.length : 0,
+    }));
+    check(distDemo.mode === 'attract' && distDemo.screen === null && distDemo.karts === 8,
+      'dist: the attract demo takes over when the menu is left alone', JSON.stringify(distDemo));
   }
 
   check(pageErrors.length === 0, 'no browser console/page errors', pageErrors.slice(0, 3).join(' | '));

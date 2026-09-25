@@ -26,6 +26,11 @@ This fork keeps the upstream game and its circuit layout untouched, and re-theme
   ramp stripes and the lane markings baked into the asphalt all glow, so the circuit still reads from
   the driver's seat at 2 a.m. The lantern strings, mooncake stall and full moon that were already there
   finally make sense.
+- **Attract demo.** Leave any menu alone for 15 seconds and the cabinet plays for you: full screen, a
+  fresh field of AI karts from the grid, the camera drifting between the leaders, and a
+  `DEMO · PRESS ANY KEY` pill at the bottom. Any key, click, wheel turn or gamepad press hands control
+  straight back to the screen you were on. (The title screen has always run a live race behind the
+  logo; this is that demo taking over the whole screen.)
 
 Track geometry, physics, AI, items and race rules are untouched: `dev/track-test.html` reports the same `centerline mismatches 0` / `racing line offroad 0` as upstream.
 

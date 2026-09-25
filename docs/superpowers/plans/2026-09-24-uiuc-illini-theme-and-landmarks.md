@@ -400,3 +400,31 @@ const lat  = (l) => (reverse ? -l : l);
 - 跳台中心精确镜像（镜像会反转排序，所以是 `rev[i] ≈ 1 - fwd[n-1-i]`）；
 - 三个地标在两个方向下包围盒中心相同（容差 2 m）；
 - 夜场世界能构建、无错误、地标照旧全上。
+
+## 16. 第六轮：街机 attract demo（+ 两个健壮性修复）
+
+### 16.1 需求
+
+“主界面不动 15 s 自动玩，玩家动了随时退出”——现有的是标题背景里那条 attract 比赛（一直在跑），但没有“闲置接管 + 一碰就退”的机制。
+
+### 16.2 实现
+
+`main.js` 里加一个极小的状态机：`DEMO_IDLE = 15`、`demo = { active, idle, returnScreen, returnState }`。
+
+- 帧循环：在 `title` / `select` / （比完赛的）`finished` 上累加 `demo.idle`；到 15 s → `enterDemo()`。
+- `enterDemo()`：`menu.hideAll()` + `hud.hide()/hideResults()`（把结算表也收走），若当前不是 attract 世界则 `buildAttract()` 重建一局（从发车格开始），加上 `body[data-demo=1]` 与控制台提示条，音乐回 menu。
+- `exitDemo()`：回到**你原来那个界面**（`returnScreen`，比如选人页就回选人页），并清掉标记。
+- 输入：`keydown`（并阻止继续进游戏）、`pointerdown`/`touchstart`/`wheel`、`pointermove`（位移 > 6 px 才算，避免鼠标被碰一下就中断），以及帧循环里**只轮询手柄**。
+
+### 16.3 两个踩出来的真问题
+
+1. **不能用 `bus.on('ui:move')` 当“玩家活动”**：手柄零点漂移会持续触发它，`demo.idle` 永远归零，demo 从选人页进不去（实测 30 s 不触发）。改为帧循环直接读 `navigator.getGamepads()`，阈值放到 |轴| > 0.4、按键 pressed。
+2. **轮询键盘按住状态会弄坏 demo**：`input.getInput()` 包含键盘，一旦某次 keydown 没配上 keyup（切窗口、失焦），演示会一进就被自己关掉（我的测试正好复现了）。**键用事件、手柄用轮询**——两者互补，都不会有陈旧状态。
+
+### 16.4 顺带的 venue 健壮性
+
+`loadModules()` 以前每个模块只 try 一次，一次网络抖动就会让那一局永久不可用（表现为“track.js unavailable”+ 空白世界，我在这轮开发里就撞了 3 次）。现在每个模块**重试一次**（间隔 250 ms）再放弃。
+
+### 16.5 验证
+
+浏览器实测：标题闲置 ~15 s → `body[data-demo=1]`、菜单隐藏、提示条 opacity 1、世界为 attract；按任意键 → 立刻回标题。选人页闲置 → demo 接管 → 点击 → **回选人页**（不是标题）。比完赛（结算表 8 行）→ demo 接管时结算表被收走、重建 attract 世界、8 台车均在跑（36–41 m/s）、无报错。CI 里已验证。

@@ -498,3 +498,14 @@ button { font: inherit; color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   .logo, .press-start, .btn.focus, .item-slot.filled { animation: none !important; }
 }
+
+/* Attract / demo mode: the cabinet plays for you after 15 s of no input, and any input takes over. */
+#demo-hint {
+  position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%); z-index: 5;
+  font-family: var(--display); font-size: 20px; letter-spacing: 3px; color: #fff;
+  background: rgba(9, 26, 46, 0.72); border: 2px solid rgba(255, 255, 255, 0.32);
+  border-radius: 999px; padding: 8px 20px; pointer-events: none;
+  opacity: 0; transition: opacity 0.45s ease;
+}
+body[data-demo='1'] #demo-hint { opacity: 1; animation: demoPulse 2.4s ease-in-out infinite; }
+@keyframes demoPulse { 50% { opacity: 0.5; } }
