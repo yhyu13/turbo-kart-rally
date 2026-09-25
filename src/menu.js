@@ -153,9 +153,12 @@ export class Menu {
       stats: s.querySelector('.pv-stats'),
     };
     this.optEls = [...s.querySelectorAll('.opts [data-i]')];
+    // Every row except the last is an option; the last element is the RACE! button. (Do not hard-code
+    // the index — adding a row used to send its clicks straight into _start().)
+    const raceBtnIndex = this.optEls.length - 1;
     this.optEls.forEach((o, i) => {
       o.addEventListener('mouseenter', () => { if (this.screen === 'select') { this.zone = 'opts'; this.optIndex = i; this._refreshFocus(); } });
-      if (i < 2) {
+      if (i < raceBtnIndex) {
         o.querySelector('.l').addEventListener('click', (e) => { e.stopPropagation(); this.zone = 'opts'; this.optIndex = i; this._changeOpt(-1); });
         o.querySelector('.r').addEventListener('click', (e) => { e.stopPropagation(); this.zone = 'opts'; this.optIndex = i; this._changeOpt(1); });
         o.querySelector('.opt-val').addEventListener('click', () => { this.zone = 'opts'; this.optIndex = i; this._changeOpt(1); });

@@ -133,7 +133,36 @@ async function main() {
   check(nightInfo.errors.length === 0, 'night world builds without errors', nightInfo.errors.join(' | '));
   check(nightInfo.landmarks >= 29, 'night world still places the landmarks', `${nightInfo.landmarks} objects`);
 
-  // ---------------------------------------------------------------- 2. single-file distribution
+  // ---------------------------------------------------------------- 2. the select screen
+  // Regression: the option rows used to be wired with a hard-coded "index < 2 is an option", so
+  // adding COURSE/DIRECTION sent their clicks straight into _start(). Clicking an option must only
+  // cycle it; only the RACE! button starts the race.
+  console.log('select screen');
+  await page.goto(`${base}/index.html`, { waitUntil: 'load' });
+  await page.waitForFunction(() => !!(window.__game && window.__game.menu), null, { timeout: 90000 });
+  await page.evaluate(async () => {
+    const g = window.__game;
+    g.goToTitle();
+    await new Promise((r) => setTimeout(r, 400));
+    const t = document.querySelector('.title-screen');
+    if (t) t.click();
+    await new Promise((r) => setTimeout(r, 500));
+  });
+  const rows = await page.evaluate(() => [...document.querySelectorAll('.opts [data-i]')].map((o) => ({
+    label: ((o.querySelector('.opt-lbl') || {}).textContent || 'RACE!').trim(),
+    value: ((o.querySelector('.opt-val') || {}).textContent || '').trim(),
+  })));
+  check(rows.length === 5 && rows[4].label.startsWith('RACE'), 'select screen: four options plus RACE!', rows.map((r) => r.label).join(','));
+  for (const [i, name] of [[2, 'COURSE'], [3, 'DIRECTION']]) {
+    const before = await page.evaluate((idx) => document.querySelectorAll('.opts [data-i]')[idx].querySelector('.opt-val').textContent, i);
+    await page.evaluate((idx) => document.querySelectorAll('.opts [data-i]')[idx].querySelector('.opt-val').dispatchEvent(new MouseEvent('click', { bubbles: true })), i);
+    await page.waitForTimeout(200);
+    const after = await page.evaluate((idx) => document.querySelectorAll('.opts [data-i]')[idx].querySelector('.opt-val').textContent, i);
+    const state = await page.evaluate(() => window.__game.state);
+    check(state === 'select' && after !== before, `select screen: clicking ${name} cycles it, does not start`, `${before} -> ${after}, state ${state}`);
+  }
+
+  // ---------------------------------------------------------------- 3. single-file distribution
   console.log('single-file distribution (dist/illini-kart-classic.html)');
   if (!fs.existsSync(DIST)) {
     fail('dist exists', 'run `bun tools/build-dist.cjs` first');
