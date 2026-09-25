@@ -335,3 +335,31 @@
 
 1. **多标签时截图是旧帧**：旧标签的 rAF 被浏览器节流，画布不重绘，但 `evaluate` 读到的 JS 状态是新的 → 截图前先 `action=focus`，或只在同一个标签里导航。
 2. 游戏依赖 jsDelivr 的 three，偶发一次模块加载失败（`buildWorld|track.js unavailable`）——重载即好，不是代码问题。
+
+## 14. 第四轮：工程债清理（拆文件 + CI）
+
+不动玩法，只动结构。目标：让下一个人（或下一轮的我）能按文件找到东西，并把这一轮踩的两个真 bug 变成自动断言。
+
+### 14.1 拆文件
+
+| 之前 | 现在 |
+|---|---|
+| `src/environment.js` 857 行 | `src/environment/{index,common,sky,terrain,water,stands,vegetation,scenery}.js`，最大 159 行 |
+| `src/landmarks.js` 707 行 | `src/landmarks/{index,toolkit,campus}.js`，最大 366 行 |
+
+拆分方式是**机械切片 + 顶部解构**：函数体逐字不动，只重写装配层（`createEnvironment` 内部建一个 `ctx`，把 `keep/scene/L/cx/cz/…` 和辅助函数交给各 builder，builder 把自己产出的东西（`heightAt`、`waterMat`、`cloudGroup`、`boats`…）回写到 `ctx`）。好处是行为不变——拆分后实测 `83 draw calls / 552,270 tris / 72 geometries / 19 textures / 0 穿透`，与拆分前**完全一致**。
+
+拆分的真实教训：机械搬运也会错，且错误只在运行时暴露（`fbm is not a function`、`root is not defined`、`mergeGeometries` 被 ctx 解构遮蔽了 import、`./config.js` 没改 `../config.js`）。所以这一轮刚好证明了下一节的必要性。
+
+### 14.2 自动回归（CI）
+
+`tools/verify.cjs`（Playwright + 零依赖静态服务）断言：
+
+- `centerline mismatches = 0`、`racing line offroad = 0`、8 个发车槽均在路面上；
+- **地形顶点高于路面 = 0**（本轮 bug 的直接回归护栏）；
+- 单文件 dist 里没有 importmap / jsdelivr，且确实包含每个模块与关键字符串（曾经丢过 track.js）；
+- dist 能建世界、`mods` 有 8 个模块、`errors()` 为空、能开一场 8 车比赛且车真的在跑（>12 m/s）。
+
+`.github/workflows/ci.yml`：装 bun/node → `playwright install --with-deps chromium` → 重建 dist → **`git diff --exit-code dist/`（committed dist 必须与源码同步，否则 CI 失败）** → 跑 verify。
+
+一个实测细节：headless SwiftShader 只有 **2–3 fps**，而主循环把 `dt` 限幅在 1/30 s，所以「入场动画 4 s + 倒计时 3 s」在 CI 里要跑几十秒墙钟。verify 因此把视口降到 640×360、并像玩家一样 `skipIntro()`，超时给到 300 s。

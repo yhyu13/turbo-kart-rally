@@ -24,7 +24,7 @@ A kart racer in the spirit of Mario Kart, built with **Three.js r170** as native
 
 | File(s) | Owner | Exports |
 |---|---|---|
-| `src/track.js`, `src/environment.js`, `src/landmarks.js`, `src/track-textures.js` | Agent 1 — World | `createTrack(scene, renderer)` |
+| `src/track.js`, `src/environment/*`, `src/landmarks/*`, `src/track-textures.js` | Agent 1 — World | `createTrack(scene, renderer)` |
 | `src/kart.js`, `src/ai.js`, `src/input.js` | Agent 2 — Driving | `Kart`, `resolveKartCollisions`, `AIDriver`, `InputController` |
 | `src/items.js`, `src/effects.js` | Agent 3 — Items & FX | `ItemSystem`, `Effects` |
 | `src/models.js`, `src/camera.js` | Agent 4 — Art & Camera | `createKartModel`, `createItemModel`, `ChaseCamera` |
@@ -60,12 +60,34 @@ Surfaces: `boost` pads (dash panels, glowing chevrons) and `jump` ramps (kart ge
 Offroad (grass/sand) runs a few meters outside the road before the barrier.
 The race direction at t=0 must match `startPositions[i].heading`.
 
-### 1b. Decor `src/landmarks.js`
+### 1b. File layout and the decor rules
+
+The world folder is split by concern so no single file carries the whole scene:
+
+| file | holds |
+|---|---|
+| `src/environment/index.js` | wiring only: builds `ctx`, calls the parts in order, publishes the API |
+| `src/environment/common.js` | pure maths: `hash`, `vnoise`, `fbm`, `mulberry`, `paint`, `stripUV` |
+| `src/environment/sky.js` | sky dome, PMREM environment map, hemisphere + sun lights, fog, `setShadowFocus` |
+| `src/environment/terrain.js` | `LANDFORMS`, `natural()`, the corridor blend, `heightAt()`, the terrain mesh + depth texture |
+| `src/environment/water.js` | the lagoon/sea shader plane |
+| `src/environment/stands.js` | grandstands, instanced crowd, waving flags (fills `standZones`) |
+| `src/environment/vegetation.js` | trees, pines, corn, bushes, rocks, flowers, tufts (all instanced) |
+| `src/environment/scenery.js` | prairie horizon, clouds, carillon, boats |
+| `src/landmarks/toolkit.js` | geometry shorthands, the `Field` vertex-colour builder, painted lettering, the locator |
+| `src/landmarks/campus.js` | one function per building, each building itself in local space |
+| `src/landmarks/index.js` | `createLandmarks` — placement, the mid-autumn props, the turbines |
+
+`src/landmarks/index.js` and `src/environment/index.js` are the entries; the parts are internal to those
+folders and must not be imported from elsewhere in `src/`.
+
+The landmark layer is pure decoration, owned by the world: campus buildings, the prairie skyline and the
+mid-autumn props.
 
 ```js
 createLandmarks({ root, keep, L, spot, heightAt }) // -> { names, update(dt, time) }
 ```
-Pure decoration, owned by the world: campus buildings, the prairie skyline and the mid-autumn props.
+
 Hard rules it must keep:
 
 - It must never touch the centerline, `resolveWall`, `getSurfaceInfo`, the racing line or item boxes. It

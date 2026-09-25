@@ -1,0 +1,40 @@
+name: ci
+
+on:
+  push:
+    branches: [main, illini-theme]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install tooling
+        run: bun install --frozen-lockfile
+
+      - name: Install headless Chromium
+        run: bunx playwright install --with-deps chromium
+
+      - name: Build the single-file distribution
+        run: bun tools/build-dist.cjs
+
+      - name: The committed dist must match the source
+        run: |
+          if ! git diff --quiet -- dist/; then
+            echo "dist/illini-kart-classic.html is stale — commit the rebuilt file (bun tools/build-dist.cjs)"
+            git diff --stat -- dist/
+            exit 1
+          fi
+
+      - name: Browser regression checks
+        run: node tools/verify.cjs

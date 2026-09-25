@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { bus } from './events.js';
 import * as TX from './track-textures.js';
-import { createEnvironment } from './environment.js';
+import { createEnvironment } from './environment/index.js';
 import { GAME_TITLE, THEME } from './config.js';
 
 const TRACK_NAME = 'Illini Campus Circuit';

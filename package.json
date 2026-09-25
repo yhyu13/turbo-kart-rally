@@ -1,0 +1,15 @@
+{
+  "name": "illini-kart-classic",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Tooling for the game in src/. The game itself needs no build step — serve the folder and play.",
+  "scripts": {
+    "build:dist": "bun tools/build-dist.cjs",
+    "verify": "node tools/verify.cjs"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0",
+    "three": "0.170.0"
+  }
+}

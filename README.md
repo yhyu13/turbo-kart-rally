@@ -11,7 +11,7 @@ This fork keeps the upstream game and its circuit layout untouched, and re-theme
 - **Palette.** Illinois blue `#13294B` and Illinois orange `#FF5F05` (plus `#1D58A7`, `#C84113`, `#C4E9F5`, `#FCB316`), taken from [brand.illinois.edu/web/web-color](https://brand.illinois.edu/web/web-color) and defined once in `src/config.js` (`THEME` / `THEME_CSS`). Sky, water, terrain, kerbs, barriers, grandstands, HUD and menus all read from it.
 - **Roster.** The eight drivers are named after teaching buildings — Lincoln, Altgeld, Siebel, Noyes, Armory, Mumford, Gregory, Bevier — with a graduation-cap hat, and per-character stats unchanged.
 - **Elevation.** The circuit is no longer flat: 33 m of range with a 15.8 % climb, a summit at +34, a **24 % plunge** off the bridge and a hairpin sitting in a real hollow. The landform is authored (`LANDFORMS` in `environment.js`) so the road cuts through a hill rather than riding an artificial mound. Three jump ramps and ten boost pads; karts leave the ground at the summit crest and on the big drop. The circuit's x/z layout is untouched — only the elevation column of the CP table changed.
-- **Landmarks** (`src/landmarks.js`, new). Memorial Stadium and State Farm Center flank the start/finish straight; the Illini Union, the Alma Mater statue, Altgeld Hall, Foellinger Auditorium, Siebel Center and the Morrow Plots corn rows sit around the lap; the McFarland Carillon replaced the lighthouse; the tropical mountains became an Illinois prairie horizon with grain silos, a town water tower and five turning wind turbines.
+- **Landmarks** (`src/landmarks/`, new). Memorial Stadium and State Farm Center flank the start/finish straight; the Illini Union, the Alma Mater statue, Altgeld Hall, Foellinger Auditorium, Siebel Center and the Morrow Plots corn rows sit around the lap; the McFarland Carillon replaced the lighthouse; the tropical mountains became an Illinois prairie horizon with grain silos, a town water tower and five turning wind turbines.
 - **Campus props.** Corn rows replace the palms, the dropped banana hazard is now an ear of Illinois corn, the item box is an orange-and-blue crate carrying the campus "I", and the circuit banners read `ILLINI / KART / CLASSIC`.
 - **Mid-autumn.** A full moon hangs over the prairie, strings of orange lanterns line the opening straight, and there is a mooncake stall in the infield.
 - **Names.** The game is *Illini Kart Classic* on the *Illini Campus Circuit*.
@@ -59,7 +59,7 @@ The orchestrating agent wrote an architecture contract first ([ARCHITECTURE.md](
 
 | Agent | Owns | Delivers |
 | --- | --- | --- |
-| 1 · World | `track.js`, `environment.js`, `track-textures.js` | Procedural circuit, barriers, boost pads, jump ramps, water, sky, scenery, grandstands, lighting |
+| 1 · World | `track.js`, `environment/`, `track-textures.js` | Procedural circuit, barriers, boost pads, jump ramps, water, sky, scenery, grandstands, lighting |
 | 2 · Driving | `kart.js`, `ai.js`, `input.js` | Arcade kart physics, drift and mini-turbo, AI drivers, keyboard and gamepad input |
 | 3 · Items and FX | `items.js`, `effects.js` | Item boxes, roulette and eight items, pooled particle effects |
 | 4 · Art and camera | `models.js`, `camera.js` | Karts, drivers, item models, portraits, chase camera |
@@ -105,6 +105,20 @@ python3 -m http.server 8080
 
 Then open http://localhost:8080. Three.js r170 is loaded from jsDelivr through an import map, so an internet connection is needed.
 
+## Checks
+
+```bash
+npm install
+npm run verify        # headless Chromium against dev/track-test.html and the single-file build
+npm run build:dist    # regenerate dist/illini-kart-classic.html (needs bun)
+```
+
+`verify` asserts the things that have actually broken this project: the centreline round-trips to
+itself, the racing line stays on the road, the terrain mesh never rises above the tarmac, the
+single-file build really does contain every module and no CDN reference, and a race runs. Locally it
+uses whatever Chromium/Edge/Chrome it finds; CI installs its own. `.github/workflows/ci.yml` runs the
+same checks and additionally fails if the committed `dist/` is stale.
+
 ## Project layout
 
 ```
@@ -116,8 +130,19 @@ turbo-kart-rally/
 │   ├── config.js         roster, physics tuning, items, difficulty, key bindings
 │   ├── events.js         shared event bus
 │   ├── track.js          circuit, surfaces, walls, racing line
-│   ├── environment.js    sky, lights, water, terrain, scenery
-│   ├── landmarks.js      campus buildings, prairie skyline, mid-autumn props
+│   ├── environment/      the world, split by concern
+│   │   ├── index.js      wiring + the createEnvironment API
+│   │   ├── common.js     noise, RNG, vertex painting, UV stripping
+│   │   ├── sky.js        sky dome, environment map, lights, fog
+│   │   ├── terrain.js    landforms, corridor blend, heightAt, terrain mesh
+│   │   ├── water.js      lagoon / sea surface
+│   │   ├── stands.js     grandstands, instanced crowd, waving flags
+│   │   ├── vegetation.js trees, pines, corn, bushes, rocks, flowers, tufts
+│   │   └── scenery.js    prairie horizon, clouds, carillon, boats
+│   ├── landmarks/        decorative campus skyline
+│   │   ├── index.js      placement + the mid-autumn props
+│   │   ├── toolkit.js    geometry shorthands, Field builder, lettering, locator
+│   │   └── campus.js     one function per building
 │   ├── kart.js           kart physics
 │   ├── ai.js             AI drivers
 │   ├── input.js          keyboard and gamepad

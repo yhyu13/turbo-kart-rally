@@ -25,30 +25,45 @@ const THREE_VERSION = '0.170.0';
 const log = (...a) => console.log('[build-dist]', ...a);
 
 // ---------------------------------------------------------------------------------------------
-// 1. scratch copy of the sources
+// 1. scratch copy of the sources (recursive: src/ now has environment/ and landmarks/ folders)
 // ---------------------------------------------------------------------------------------------
 fs.rmSync(WORK, { recursive: true, force: true });
 fs.mkdirSync(SRC, { recursive: true });
-for (const f of fs.readdirSync(path.join(ROOT, 'src'))) {
-  if (f.endsWith('.js') || f.endsWith('.css')) fs.copyFileSync(path.join(ROOT, 'src', f), path.join(SRC, f));
-}
-log('copied', fs.readdirSync(SRC).length, 'source files');
+let copied = 0;
+const walk = (dir, rel = '') => {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const from = path.join(dir, entry.name);
+    const to = path.join(SRC, rel, entry.name);
+    if (entry.isDirectory()) {
+      fs.mkdirSync(to, { recursive: true });
+      walk(from, path.join(rel, entry.name));
+    } else if (entry.name.endsWith('.js') || entry.name.endsWith('.css')) {
+      fs.copyFileSync(from, to);
+      copied++;
+    }
+  }
+};
+walk(path.join(ROOT, 'src'));
+log('copied', copied, 'source files');
 
 // 2. `three/addons/...` is an import-map alias in index.html; on disk it is `three/examples/jsm/...`
 //    (CRLF from the Windows working copy is normalised here too, so the patches below match)
-for (const f of fs.readdirSync(SRC)) {
-  if (!f.endsWith('.js')) continue;
-  const p = path.join(SRC, f);
-  const patched = fs.readFileSync(p, 'utf8').replace(/\r\n/g, '\n').replace(/three\/addons\//g, 'three/examples/jsm/');
-  fs.writeFileSync(p, patched);
-}
+const patchImports = (dir) => {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, entry.name);
+    if (entry.isDirectory()) { patchImports(p); continue; }
+    if (!entry.name.endsWith('.js')) continue;
+    const patched = fs.readFileSync(p, 'utf8').replace(/\r\n/g, '\n').replace(/three\/addons\//g, 'three/examples/jsm/');
+    fs.writeFileSync(p, patched);
+  }
+};
+patchImports(SRC);
 
 // 3. main.js loads its sibling modules through a *variable* specifier so that a broken file
 //    degrades instead of killing the game. A bundler cannot see through that, so for the frozen
 //    single-file build the specifiers become literals. Nothing else about the code changes.
 {
-  const p = path.join(SRC, 'main.js');
-  let s = fs.readFileSync(p, 'utf8');
+  const p = path.join(SRC, 'main.js');  let s = fs.readFileSync(p, 'utf8');
   const before = s;
   s = s.replace(
     /async function loadModules\(\) \{[\s\S]*?\n\}/,
