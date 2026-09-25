@@ -28,7 +28,7 @@ A kart racer in the spirit of Mario Kart, built with **Three.js r170** as native
 | `src/kart.js`, `src/ai.js`, `src/input.js` | Agent 2 — Driving | `Kart`, `resolveKartCollisions`, `AIDriver`, `InputController` |
 | `src/items.js`, `src/effects.js` | Agent 3 — Items & FX | `ItemSystem`, `Effects` |
 | `src/models.js`, `src/camera.js` | Agent 4 — Art & Camera | `createKartModel`, `createItemModel`, `ChaseCamera` |
-| `src/main.js`, `src/race.js`, `src/hud.js`, `src/menu.js`, `src/audio.js`, `src/styles.css` | Agent 5 — Game & UI | game loop, `RaceManager`, `HUD`, `Menu`, `AudioEngine` |
+| `src/main.js`, `src/race.js`, `src/hud.js`, `src/menu.js`, `src/audio.js`, `src/controls-help.js`, `src/styles.css` | Agent 5 — Game & UI | game loop, `RaceManager`, `HUD`, `Menu`, `AudioEngine`, shared key legend |
 
 Do **not** edit files you don't own. If you need something from another module, code against this contract.
 

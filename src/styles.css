@@ -509,3 +509,24 @@ button { font: inherit; color: inherit; }
 }
 body[data-demo='1'] #demo-hint { opacity: 1; animation: demoPulse 2.4s ease-in-out infinite; }
 @keyframes demoPulse { 50% { opacity: 0.5; } }
+.hud-controls.muted { opacity: 0; }
+
+/* In-race controls guide: a dim strip in the corner, and the full legend on demand (H). */
+.hud-controls {
+  position: absolute; left: 18px; bottom: calc(clamp(150px, 24vmin, 240px) + 26px);
+  display: flex; flex-direction: column; gap: 6px; align-items: flex-start;
+  font-family: var(--body); font-weight: 900; letter-spacing: 0.5px; pointer-events: none;
+}
+.hud-controls .ctl-strip {
+  display: flex; align-items: center; gap: 3px; padding: 5px 10px; border-radius: 12px;
+  background: rgba(8, 20, 36, 0.42); border: 2px solid rgba(255, 255, 255, 0.16);
+  font-size: 12px; color: #fff; opacity: 0.6; transition: opacity 0.3s ease;
+}
+.hud-controls .ctl-strip .kc { min-width: 22px; height: 22px; font-size: 12px; box-shadow: 0 2px 0 #8fa6c0; }
+.hud-controls .ctl-full {
+  display: none; flex-wrap: wrap; gap: 6px 18px; max-width: 430px;
+  padding: 10px 14px; border-radius: 14px; background: rgba(8, 20, 36, 0.62);
+  border: 2px solid rgba(255, 255, 255, 0.18); font-size: 12px; color: #fff;
+}
+.hud-controls.open .ctl-full { display: flex; }
+.hud-controls.open .ctl-strip { opacity: 0.35; }

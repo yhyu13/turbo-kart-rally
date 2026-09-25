@@ -439,3 +439,21 @@ const lat  = (l) => (reverse ? -l : l);
 - 每次重建都是 8 台车从发车格开始（`buildAttract(variant)` 现在接受变体参数；标题/菜单仍用玩家自己选的那套）。
 
 实测四套循环：`NIGHT·FORWARD → NIGHT·REVERSE → DAY·REVERSE → DAY·FORWARD → 回到起点`，每套 `mode=attract`、8 台车全部在跑、四次重建无任何报错。CI 新增两条断言（每次轮换换到不同 setup、提示条正确报出当前 setup）。
+
+### 16.7 比赛中的操作指南（用户追加需求）
+
+“操作指南要在游戏中展示，某个角落”。原来按键表只在选人页底部和暂停面板里，**跑起来就看不到** —— 正好需求是“游戏中的某个角落”。
+
+实现（`src/controls-help.js` 为唯一来源，选人页 / 暂停页 / HUD 共用，不会出现只改一处的分叉）：
+
+| 位置 | 内容 | 行为 |
+| --- | --- | --- |
+| HUD 左下角（小地图正上方） | 常驻一条极简提示 `[W] GAS [SPACE] DRIFT [E] ITEM [C] LOOK [H] KEYS`，字号 12、背景 `rgba(8,20,36,0.42)`、opacity 0.6、`pointer-events: none` | 比赛全程可见，不抢视线、不挡操作 |
+| 同位置展开 | 完整 8 行键位表（与选人页同一份 HTML） | 每局开赛自动展开 `CONTROLS_TEACH = 10 s`（含倒计时），到期自动收起；**H** 随时开关，玩家手动开的不会被自动收起 |
+| 结算画面 | 整块淡出（`.muted`） | 名次表占满屏幕时不再有多余信息 |
+
+要点：
+- 教学窗口每局重来一次（新手不必翻菜单），但只在 10 秒内“主动”存在，之后只剩一条暗条 —— 老手不会被长时间遮挡；
+- `setControlsOpen(open, pinned)` 区分“自动展开”与“玩家展开”：只有后者能阻止自动收起；
+- `startRace()` 入口现在会先 `exitDemo()`，且帧循环里的轮换只在菜单/标题态触发（`state !== racing|intro|loading|finished`）—— 防止“race 进行中 demo 定时器把世界重建掉”这种只有程序化调用才会踩到的坑；
+- 实测（Chromium）：开赛 `open=true / full=flex` → 11 s 后 `open=false / full=none / strip opacity 0.6` → 按 H `open=true` → 再按 H `open=false` → 结算 `muted=true`；位置 18,452 尺寸 430×188（展开）/ 376×36（收起），全部落在小地图上方空白区，零报错。CI 新增三条断言。

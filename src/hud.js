@@ -1,6 +1,10 @@
 // In-race HUD: DOM/CSS overlay in #ui-root plus a couple of small canvases (minimap, speedometer, item icons).
 import { bus } from './events.js';
 import { ITEMS, CHARACTERS } from './config.js';
+import { CONTROLS_HTML, CONTROLS_STRIP_HTML } from './controls-help.js';
+
+/** Seconds the full key legend stays expanded at the start of a race before folding into the corner. */
+const CONTROLS_TEACH = 10;
 import { formatTime } from './race.js';
 
 const hex = (c) => '#' + (c >>> 0).toString(16).padStart(6, '0').slice(-6);
@@ -246,6 +250,15 @@ export class HUD {
     this.countEl = el('div', 'hud-countdown', r);
     this.bannerEl = el('div', 'hud-banner', r);
     this.wrongEl = el('div', 'hud-wrongway', r, '<div class="ww-arrow"></div><div class="ww-text">WRONG WAY</div>');
+    // In-race controls guide, bottom-left above the minimap: a dim one-liner that is always there, and
+    // the full legend (expanded for the first few seconds of every race, or any time with H).
+    this.ctlEl = el('div', 'hud-controls', r);
+    this.ctlEl.innerHTML = `
+      <div class="ctl-full">${CONTROLS_HTML}</div>
+      <div class="ctl-strip">${CONTROLS_STRIP_HTML}</div>`;
+    this._ctlOpen = false;
+    this._ctlPinned = false;
+    this._ctlT = 0;
     this.flashEl = el('div', 'hud-flash', uiRoot);
     this.finishEl = el('div', 'hud-finish', r);
     this.lapPop = el('div', 'hud-lappop', r);
@@ -315,7 +328,20 @@ export class HUD {
     this.lapPop.className = 'hud-lappop';
     this.hideResults();
     this._buildMinimap(track);
+    // teach the keys once per race, then get out of the way (H re-opens it)
+    this._ctlPinned = false;
+    this._ctlT = 0;
+    this.setControlsOpen(true);
   }
+
+  /** Show/hide the full key legend. Pass pinned=true for an explicit open (H) so it will not auto-fold. */
+  setControlsOpen(open, pinned = false) {
+    this._ctlOpen = !!open;
+    this._ctlPinned = pinned && this._ctlOpen;
+    if (this.ctlEl) this.ctlEl.classList.toggle('open', this._ctlOpen);
+  }
+
+  toggleControls() { this.setControlsOpen(!this._ctlOpen, true); }
 
   toast(msg) {
     this.toastEl.textContent = msg;
@@ -453,6 +479,11 @@ export class HUD {
 
   // ------------------------------------------------------------------ per-frame
   update(dt, { player, karts, race, itemSystem, time = 0 } = {}) {
+    // Fold the key legend away after the teaching window unless the player opened it themselves.
+    if (this._ctlOpen && !this._ctlPinned) {
+      this._ctlT += dt;
+      if (this._ctlT >= CONTROLS_TEACH) this.setControlsOpen(false);
+    }
     if (!this.active || !player) return;
     const L = this._last;
 
@@ -556,6 +587,9 @@ export class HUD {
 
   // ------------------------------------------------------------------ results
   showResults(results, { onRestart, onMenu, laps } = {}) {
+    // the standings take the screen; the corner key legend would only be noise behind it
+    this.setControlsOpen(false);
+    if (this.ctlEl) this.ctlEl.classList.add('muted');
     const R = this.resultsEl;
     const rows = results.map((r, i) => {
       const img = this.portrait(r.character);
@@ -608,6 +642,7 @@ export class HUD {
   }
 
   hideResults() {
+    if (this.ctlEl) this.ctlEl.classList.remove('muted');
     if (this._resKey) { window.removeEventListener('keydown', this._resKey); this._resKey = null; }
     this.resultsEl.classList.remove('show');
     this.resultsEl.classList.add('hidden');

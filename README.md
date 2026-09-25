@@ -35,6 +35,11 @@ This fork keeps the upstream game and its circuit layout untouched, and re-theme
   every 32 seconds: day/forward → night/forward → night/reverse → day/reverse, rebuilding the circuit
   each time and naming the current setup in the hint. A cabinet left alone for a couple of minutes
   shows the whole matrix.
+- **Controls guide in the corner.** While racing, a dim strip sits above the minimap with the keys you
+  actually need (`W` GAS · `SPACE` DRIFT · `E` ITEM · `C` LOOK · `H` KEYS). The full legend expands on
+  its own for the first 10 seconds of every race so a newcomer learns the whole keyboard, then folds
+  away; **H** re-opens it at any time, and it stays put until you close it. The same legend (one source
+  of truth, `src/controls-help.js`) is on the character-select and pause screens.
 
 Track geometry, physics, AI, items and race rules are untouched: `dev/track-test.html` reports the same `centerline mismatches 0` / `racing line offroad 0` as upstream.
 

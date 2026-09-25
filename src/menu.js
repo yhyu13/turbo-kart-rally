@@ -1,5 +1,6 @@
 // Title screen, character select (with difficulty / laps options + controls help), pause menu, gamepad navigation.
 import { bus } from './events.js';
+import { CONTROLS_HTML } from './controls-help.js';
 import { CHARACTERS, GAME_TITLE } from './config.js';
 
 const hex = (c) => '#' + (c >>> 0).toString(16).padStart(6, '0').slice(-6);
@@ -21,15 +22,6 @@ function el(tag, cls, parent, html) {
 }
 const statBar = (v) => `<div class="bar">${[1, 2, 3, 4, 5].map((i) => `<i class="${i <= v ? 'on' : ''}"></i>`).join('')}</div>`;
 
-const CONTROLS_HTML = `
-  <div class="ctl"><span class="kc">↑</span><span class="kc">W</span> Accelerate</div>
-  <div class="ctl"><span class="kc">↓</span><span class="kc">S</span> Brake / Reverse</div>
-  <div class="ctl"><span class="kc">←→</span><span class="kc">A D</span> Steer</div>
-  <div class="ctl"><span class="kc wide">SPACE</span> Hop / Drift</div>
-  <div class="ctl"><span class="kc">E</span><span class="kc">X</span><span class="kc wide">L-SHIFT</span> Use item</div>
-  <div class="ctl"><span class="kc">C</span> Look back</div>
-  <div class="ctl"><span class="kc wide">ESC</span><span class="kc">P</span> Pause</div>
-  <div class="ctl"><span class="kc">M</span> Mute</div>`;
 
 export class Menu {
   constructor(uiRoot, handlers = {}) {

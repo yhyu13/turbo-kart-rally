@@ -305,6 +305,7 @@ function goToTitle() {
 
 function startRace(settings) {
   lastSettings = { ...lastSettings, ...settings };
+  if (demo.active) exitDemo(); // a race must never start with the demo's rotation timer still armed
   hud.hide(); hud.hideResults();
   menu.showLoading('GET READY!');
   audio.setPaused(false);
@@ -501,6 +502,10 @@ window.addEventListener('keydown', (e) => {
     hud.toast(muted ? 'SOUND OFF' : 'SOUND ON');
     return;
   }
+  if (e.code === 'KeyH' && !e.repeat) {
+    hud.toggleControls();
+    return;
+  }
   if ((e.code === 'Escape' || e.code === 'KeyP') && !e.repeat) {
     if (state === 'paused') { if (e.code === 'Escape' || e.code === 'KeyP') { bus.emit('ui:back'); resume(); } }
     else if (RACE_STATES.has(state)) pause();
@@ -627,7 +632,8 @@ function frame() {
   // the demo runs; keys, pointer and wheel are handled by their own listeners.
   if (demo.active) {
     demo.rotateT -= dt;
-    if (demo.rotateT <= 0) rotateDemo();
+    // Only ever rotate an attract world that is actually on screen; a race in progress owns the world.
+    if (demo.rotateT <= 0 && state !== 'racing' && state !== 'intro' && state !== 'loading' && state !== 'finished') rotateDemo();
     // Gamepad only. Polling the *keyboard*'s held state here would break the demo whenever a keyup is
     // missed (switching windows while a key is down is the classic case) — keys arrive as events
     // instead, so they cannot go stale.

@@ -274,6 +274,38 @@ async function main() {
     }));
     check(distDemo.mode === 'attract' && distDemo.screen === null && distDemo.karts === 8,
       'dist: the attract demo takes over when the menu is left alone', JSON.stringify(distDemo));
+
+    // In-race controls guide: a dim corner strip that is always there, and the full legend on H.
+    const ctlRead = () => page.evaluate(() => {
+      const el = document.querySelector('.hud-controls');
+      if (!el) return null;
+      return {
+        open: el.classList.contains('open'),
+        full: getComputedStyle(el.querySelector('.ctl-full')).display,
+        stripOpacity: Number(getComputedStyle(el.querySelector('.ctl-strip')).opacity),
+        strip: (el.querySelector('.ctl-strip').textContent || '').replace(/\s+/g, ' ').trim(),
+      };
+    });
+    await page.evaluate(() => { window.__game.goToTitle(); });
+    await page.waitForTimeout(400);
+    await page.evaluate(() => window.__game.startRace({ class: '100cc', laps: 3 }));
+    await page.waitForFunction(() => window.__game.state === 'racing' || window.__game.state === 'finished', null, { timeout: 300000, polling: 500 });
+    // the legend teaches itself for CONTROLS_TEACH seconds; wait for it to fold
+    await page.waitForFunction(() => {
+      const el = document.querySelector('.hud-controls');
+      return el && !el.classList.contains('open');
+    }, null, { timeout: 240000, polling: 500 });
+    const folded = await ctlRead();
+    check(!!folded && folded.strip.includes('KEYS') && folded.full === 'none' && folded.stripOpacity > 0.2,
+      'race HUD: controls strip sits in the corner, legend folded', JSON.stringify(folded));
+    await page.evaluate(() => document.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyH', key: 'h', bubbles: true })));
+    await page.waitForFunction(() => document.querySelector('.hud-controls').classList.contains('open'), null, { timeout: 30000, polling: 200 });
+    const opened = await ctlRead();
+    check(opened && opened.full === 'flex', 'race HUD: H opens the full controls legend', JSON.stringify(opened));
+    await page.evaluate(() => document.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyH', key: 'h', bubbles: true })));
+    await page.waitForFunction(() => !document.querySelector('.hud-controls').classList.contains('open'), null, { timeout: 30000, polling: 200 });
+    const reclosed = await ctlRead();
+    check(reclosed && reclosed.full === 'none', 'race HUD: H closes it again', JSON.stringify(reclosed));
   }
 
   check(pageErrors.length === 0, 'no browser console/page errors', pageErrors.slice(0, 3).join(' | '));
